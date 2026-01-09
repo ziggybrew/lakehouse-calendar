@@ -15,7 +15,7 @@ type BookingMode = 'weekend' | 'week'
 
 export default function Calendar() {
   const [bookingMode, setBookingMode] = useState<BookingMode>('weekend')
-  const [selectedDate, setSelectedDate] = useState<string | null>(null)
+  const [selectedRange, setSelectedRange] = useState<{ start: string; end: string } | null>(null)
 
   const events: Booking[] = useMemo(
     () => [
@@ -36,12 +36,68 @@ export default function Calendar() {
   )
 
   function onDateClick(arg: DateClickArg) {
-    // arg.dateStr is YYYY-MM-DD
-    setSelectedDate(arg.dateStr)
-  }
+    const range =
+        bookingMode === 'weekend'
+        ? getWeekendRange(arg.date)
+        : getWeekRange(arg.date)
+
+    setSelectedRange({
+        start: formatYmd(range.start),
+        end: formatYmd(range.endExclusive),
+    })
+}
 
   function closePanel() {
-    setSelectedDate(null)
+    setSelectedRange(null)
+  }
+
+  function pad2(n: number) {
+    return String(n).padStart(2, '0')
+  }
+
+  function formatYmd(d: Date) {
+    // Local date -> YYYY-MM-DD (avoids timezone drift from toISOString)
+    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  }
+
+  function addDays(date: Date, days: number) {
+    const d = new Date(date)
+    d.setDate(d.getDate() + days)
+    return d
+  }
+
+  function startOfDay(date: Date) {
+    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  }
+
+  function getWeekendRange(clicked: Date) {
+    // Weekend = Fri–Sun, endExclusive = Monday
+    const d = startOfDay(clicked)
+    const dow = d.getDay() // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
+
+    let offsetToFriday = 0
+
+    if (dow === 0) offsetToFriday = -2 // Sun -> previous Fri
+    else if (dow === 6) offsetToFriday = -1 // Sat -> previous Fri
+    else if (dow === 5) offsetToFriday = 0 // Fri -> Fri
+    else offsetToFriday = 5 - dow // Mon-Thu -> upcoming Fri
+
+    const start = addDays(d, offsetToFriday)
+    const endExclusive = addDays(start, 3) // Fri + 3 = Monday
+
+    return { start, endExclusive }
+  }
+
+  function getWeekRange(clicked: Date) {
+    // Week = Mon–Sun, endExclusive = next Monday
+    const d = startOfDay(clicked)
+    const dow = d.getDay() // 0=Sun, 1=Mon, ... 6=Sat
+
+    const offsetToMonday = dow === 0 ? -6 : 1 - dow // Sun -> previous Mon, else snap back to Mon
+    const start = addDays(d, offsetToMonday)
+    const endExclusive = addDays(start, 7) // next Monday
+
+    return { start, endExclusive }
   }
 
   return (
@@ -79,14 +135,16 @@ export default function Calendar() {
         }}
       />
 
-      {selectedDate && (
+      {selectedRange && (
         <div
           role="dialog"
           aria-modal="true"
           style={{
             position: 'fixed',
             inset: 0,
-            background: 'rgba(0,0,0,0.35)',
+            zIndex: 9999,
+            background: 'rgba(0,0,0,0.65)',
+            backdropFilter: 'blur(2px)',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -98,6 +156,7 @@ export default function Calendar() {
             style={{
               width: 'min(520px, 100%)',
               background: 'white',
+              color: '#111827',
               borderRadius: 12,
               padding: 16,
               boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
@@ -112,7 +171,7 @@ export default function Calendar() {
             <div style={{ marginTop: 12, fontSize: 14 }}>
               <div>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>Selected date</div>
-                <div>{selectedDate}</div>
+                <div>{selectedRange.start} → {selectedRange.end}</div>
               </div>
 
               <div style={{ marginTop: 12 }}>
@@ -123,7 +182,7 @@ export default function Calendar() {
               <div style={{ marginTop: 12 }}>
                 <div style={{ fontSize: 12, opacity: 0.7 }}>Next</div>
                 <div>
-                  For now this is a stub. Next we’ll:
+                  For now this is a stub. Next steps include:
                   <ul style={{ marginTop: 8 }}>
                     <li>Auto-calculate start/end based on weekend vs week</li>
                     <li>Detect conflicts with existing bookings</li>
