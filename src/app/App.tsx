@@ -3,9 +3,10 @@ import Login from '../pages/Login'
 import Calendar from '../pages/Calendar'
 import Admin from '../pages/Admin'
 import ProtectedRoute from '../components/ProtectedRoute'
+import AppShell from '../components/AppShell'
 
 export default function App() {
-  const isAuthed = false // temporary; we’ll replace this when we add real auth
+  const isAuthed = true // TODO: replace with real auth check
 
   return (
     <Routes>
@@ -13,22 +14,15 @@ export default function App() {
       <Route path="/login" element={<Login />} />
 
       <Route
-        path="/calendar"
         element={
           <ProtectedRoute isAuthed={isAuthed}>
-            <Calendar />
+            <AppShell />
           </ProtectedRoute>
         }
-      />
-
-      <Route
-        path="/admin"
-        element={
-          <ProtectedRoute isAuthed={isAuthed}>
-            <Admin />
-          </ProtectedRoute>
-        }
-      />
+      >
+        <Route path="/calendar" element={<Calendar />} />
+        <Route path="/admin" element={<Admin />} />
+      </Route>
 
       <Route path="*" element={<Navigate to="/calendar" replace />} />
     </Routes>
