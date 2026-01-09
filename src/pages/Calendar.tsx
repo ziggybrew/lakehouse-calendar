@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+// src/pages/Calendar.tsx
+import { useEffect, useMemo, useState } from 'react'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -8,117 +9,115 @@ type Booking = {
   id: string
   title: string
   start: string // YYYY-MM-DD
-  end: string // YYYY-MM-DD (FullCalendar treats end as exclusive in many cases)
+  end: string // YYYY-MM-DD (end-exclusive)
+  notes?: string
 }
 
-type BookingMode = 'weekend' | 'week'
+type DraftBooking = {
+  start: string // YYYY-MM-DD
+  end: string // YYYY-MM-DD (end-exclusive)
+  title: string
+  notes: string
+}
 
 export default function Calendar() {
-  const [bookingMode, setBookingMode] = useState<BookingMode>('weekend')
-  const [selectedRange, setSelectedRange] = useState<{ start: string; end: string } | null>(null)
-
-  const events: Booking[] = useMemo(
+  // Hardcoded sample data for now (persistence comes later).
+  const bookings: Booking[] = useMemo(
     () => [
       {
         id: '1',
-        title: 'Booked - Zack',
+        title: 'Zack',
         start: '2026-01-16',
         end: '2026-01-19',
+        notes: 'Arriving Friday evening. Leaving Sunday afternoon.',
       },
       {
         id: '2',
-        title: 'Booked - Family',
+        title: 'Family',
         start: '2026-02-06',
         end: '2026-02-09',
+        notes: 'Weekend hang.',
+      },
+      {
+        id: '3',
+        title: 'Cousins',
+        start: '2026-02-08',
+        end: '2026-02-12',
+        notes: 'Overlap is allowed for visibility.',
       },
     ],
     []
   )
 
-  function onDateClick(arg: DateClickArg) {
-    const range =
-        bookingMode === 'weekend'
-        ? getWeekendRange(arg.date)
-        : getWeekRange(arg.date)
+  // FullCalendar expects `events` in a compatible format. Bookings already match well.
+  const events = bookings
 
-    setSelectedRange({
-        start: formatYmd(range.start),
-        end: formatYmd(range.endExclusive),
+  const [draft, setDraft] = useState<DraftBooking | null>(null)
+  const [activeDay, setActiveDay] = useState<string | null>(null)
+
+  // Prevent background scrolling while any modal is open
+  useEffect(() => {
+    if (draft || activeDay) document.body.style.overflow = 'hidden'
+    return () => {
+      document.body.style.overflow = ''
+    }
+  }, [draft, activeDay])
+
+  function openBookingModal() {
+    const today = new Date()
+    const start = formatYmd(today)
+    const endExclusive = formatYmd(addDays(startOfDay(today), 1))
+
+    setDraft({
+      start,
+      end: endExclusive,
+      title: '',
+      notes: '',
     })
-}
-
-  function closePanel() {
-    setSelectedRange(null)
   }
 
-  function pad2(n: number) {
-    return String(n).padStart(2, '0')
+  function closeBookingModal() {
+    setDraft(null)
   }
 
-  function formatYmd(d: Date) {
-    // Local date -> YYYY-MM-DD (avoids timezone drift from toISOString)
-    return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  function closeDayModal() {
+    setActiveDay(null)
   }
 
-  function addDays(date: Date, days: number) {
-    const d = new Date(date)
-    d.setDate(d.getDate() + days)
-    return d
+  function onDayClick(arg: DateClickArg) {
+    // arg.dateStr is YYYY-MM-DD in the calendar's local context
+    setActiveDay(arg.dateStr)
   }
 
-  function startOfDay(date: Date) {
-    return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+  function onCreateEntryStub() {
+    alert(
+      [
+        'Create entry (stub)',
+        '',
+        `Label: ${draft?.title || '(none)'}`,
+        `Start: ${draft?.start}`,
+        `End (exclusive): ${draft?.end}`,
+        `Notes: ${draft?.notes || '(none)'}`,
+      ].join('\n')
+    )
+    closeBookingModal()
   }
 
-  function getWeekendRange(clicked: Date) {
-    // Weekend = Fri–Sun, endExclusive = Monday
-    const d = startOfDay(clicked)
-    const dow = d.getDay() // 0=Sun, 1=Mon, ... 5=Fri, 6=Sat
-
-    let offsetToFriday = 0
-
-    if (dow === 0) offsetToFriday = -2 // Sun -> previous Fri
-    else if (dow === 6) offsetToFriday = -1 // Sat -> previous Fri
-    else if (dow === 5) offsetToFriday = 0 // Fri -> Fri
-    else offsetToFriday = 5 - dow // Mon-Thu -> upcoming Fri
-
-    const start = addDays(d, offsetToFriday)
-    const endExclusive = addDays(start, 3) // Fri + 3 = Monday
-
-    return { start, endExclusive }
-  }
-
-  function getWeekRange(clicked: Date) {
-    // Week = Mon–Sun, endExclusive = next Monday
-    const d = startOfDay(clicked)
-    const dow = d.getDay() // 0=Sun, 1=Mon, ... 6=Sat
-
-    const offsetToMonday = dow === 0 ? -6 : 1 - dow // Sun -> previous Mon, else snap back to Mon
-    const start = addDays(d, offsetToMonday)
-    const endExclusive = addDays(start, 7) // next Monday
-
-    return { start, endExclusive }
-  }
+  const dayBookings = useMemo(() => {
+    if (!activeDay) return []
+    return bookingsForDay(bookings, activeDay)
+  }, [bookings, activeDay])
 
   return (
     <div>
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <h1 style={{ margin: 0 }}>Calendar</h1>
 
-        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 8 }}>
-          <span style={{ fontSize: 12, opacity: 0.7 }}>Booking mode:</span>
-          <button
-            onClick={() => setBookingMode('weekend')}
-            disabled={bookingMode === 'weekend'}
-          >
-            Weekend
-          </button>
-          <button
-            onClick={() => setBookingMode('week')}
-            disabled={bookingMode === 'week'}
-          >
-            Week
-          </button>
+        <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          <span style={{ fontSize: 12, opacity: 0.75 }}>
+            Click a day to view details. Overlaps are allowed.
+          </span>
+          <button onClick={openBookingModal}>Book dates</button>
         </div>
       </div>
 
@@ -127,7 +126,8 @@ export default function Calendar() {
         initialView="dayGridMonth"
         height="auto"
         events={events}
-        dateClick={onDateClick}
+        selectable={false}
+        dateClick={onDayClick}
         headerToolbar={{
           left: 'prev,next today',
           center: 'title',
@@ -135,78 +135,199 @@ export default function Calendar() {
         }}
       />
 
-      {selectedRange && (
-        <div
-          role="dialog"
-          aria-modal="true"
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            background: 'rgba(0,0,0,0.65)',
-            backdropFilter: 'blur(2px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: 16,
-          }}
-          onClick={closePanel}
-        >
-          <div
-            style={{
-              width: 'min(520px, 100%)',
-              background: 'white',
-              color: '#111827',
-              borderRadius: 12,
-              padding: 16,
-              boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <strong>New booking</strong>
-              <button onClick={closePanel}>Close</button>
+      {/* Day Details Modal */}
+      {activeDay && (
+        <Modal onClose={closeDayModal} title={`Details for ${activeDay}`}>
+          {dayBookings.length === 0 ? (
+            <div style={{ fontSize: 14 }}>
+              <strong>No entries</strong>
+              <div style={{ marginTop: 6, opacity: 0.8 }}>
+                Use “Book dates” to add a presence entry for this timeframe.
+              </div>
             </div>
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {dayBookings.map((b) => (
+                <div
+                  key={b.id}
+                  style={{
+                    border: '1px solid #e5e7eb',
+                    borderRadius: 10,
+                    padding: 12,
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                    <strong>{b.title}</strong>
+                    <span style={{ fontSize: 12, opacity: 0.75 }}>
+                      {b.start} → {toInclusiveEnd(b.end)}
+                    </span>
+                  </div>
 
-            <div style={{ marginTop: 12, fontSize: 14 }}>
-              <div>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>Selected date</div>
-                <div>{selectedRange.start} → {selectedRange.end}</div>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>Mode</div>
-                <div>{bookingMode === 'weekend' ? 'Weekend (Fri–Sun)' : 'Week (Mon–Sun)'}</div>
-              </div>
-
-              <div style={{ marginTop: 12 }}>
-                <div style={{ fontSize: 12, opacity: 0.7 }}>Next</div>
-                <div>
-                  For now this is a stub. Next steps include:
-                  <ul style={{ marginTop: 8 }}>
-                    <li>Auto-calculate start/end based on weekend vs week</li>
-                    <li>Detect conflicts with existing bookings</li>
-                    <li>Add “Booked for” name + notes</li>
-                    <li>Persist to Firebase/Supabase</li>
-                  </ul>
+                  {b.notes ? (
+                    <div style={{ marginTop: 8, fontSize: 13, opacity: 0.9 }}>{b.notes}</div>
+                  ) : (
+                    <div style={{ marginTop: 8, fontSize: 13, opacity: 0.6 }}>No notes provided.</div>
+                  )}
                 </div>
-              </div>
+              ))}
+            </div>
+          )}
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
+            <button onClick={closeDayModal}>Close</button>
+          </div>
+        </Modal>
+      )}
+
+      {/* Booking Modal */}
+      {draft && (
+        <Modal onClose={closeBookingModal} title="New entry">
+          <div style={{ marginTop: 8, display: 'grid', gap: 12 }}>
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Start date</div>
+              <input
+                type="date"
+                value={draft.start}
+                onChange={(e) => setDraft({ ...draft, start: e.target.value })}
+              />
             </div>
 
-            <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 16 }}>
-              <button onClick={closePanel}>Cancel</button>
-              <button
-                onClick={() => {
-                  alert('Stub: create booking')
-                  closePanel()
-                }}
-              >
-                Create booking (stub)
-              </button>
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>End date (inclusive)</div>
+              <input
+                type="date"
+                value={toInclusiveEnd(draft.end)}
+                onChange={(e) => setDraft({ ...draft, end: toExclusiveEnd(e.target.value) })}
+              />
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Label</div>
+              <input
+                type="text"
+                placeholder="e.g., Zack, Mom/Dad, Cousins"
+                value={draft.title}
+                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <div>
+              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Notes (optional)</div>
+              <textarea
+                placeholder="Anything helpful..."
+                rows={3}
+                value={draft.notes}
+                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
+                style={{ width: '100%', resize: 'vertical' }}
+              />
+            </div>
+
+            <div style={{ fontSize: 12, opacity: 0.7 }}>
+              Next steps include: persisting entries, adding authentication, and improving the display of overlapping
+              entries.
             </div>
           </div>
-        </div>
+
+          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
+            <button onClick={closeBookingModal}>Cancel</button>
+            <button onClick={onCreateEntryStub} disabled={!draft.start || !draft.end}>
+              Create entry (stub)
+            </button>
+          </div>
+        </Modal>
       )}
     </div>
   )
+}
+
+function Modal(props: { title: string; onClose: () => void; children: React.ReactNode }) {
+  return (
+    <div
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: 'rgba(0,0,0,0.65)',
+        backdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 16,
+      }}
+      onClick={props.onClose}
+    >
+      <div
+        style={{
+          width: 'min(620px, 100%)',
+          background: 'white',
+          color: '#111827',
+          borderRadius: 12,
+          padding: 16,
+          boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <strong>{props.title}</strong>
+          <button onClick={props.onClose}>Close</button>
+        </div>
+
+        <div style={{ marginTop: 12 }}>{props.children}</div>
+      </div>
+    </div>
+  )
+}
+
+/**
+ * Booking ranges are stored as end-exclusive to avoid off-by-one errors.
+ * The UI displays inclusive end dates for readability.
+ */
+
+function pad2(n: number) {
+  return String(n).padStart(2, '0')
+}
+
+function formatYmd(d: Date) {
+  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+}
+
+function ymdToDate(ymd: string) {
+  const [y, m, d] = ymd.split('-').map(Number)
+  return new Date(y, m - 1, d)
+}
+
+function startOfDay(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
+}
+
+function addDays(date: Date, days: number) {
+  const d = new Date(date)
+  d.setDate(d.getDate() + days)
+  return d
+}
+
+function toInclusiveEnd(endExclusiveYmd: string) {
+  const d = ymdToDate(endExclusiveYmd)
+  d.setDate(d.getDate() - 1)
+  return formatYmd(d)
+}
+
+function toExclusiveEnd(inclusiveEndYmd: string) {
+  const d = ymdToDate(inclusiveEndYmd)
+  d.setDate(d.getDate() + 1)
+  return formatYmd(d)
+}
+
+function isDayWithinRange(dayYmd: string, startYmd: string, endExclusiveYmd: string) {
+  // All strings are YYYY-MM-DD; lexical comparison works.
+  return startYmd <= dayYmd && dayYmd < endExclusiveYmd
+}
+
+function bookingsForDay(bookings: Booking[], dayYmd: string) {
+  return bookings
+    .filter((b) => isDayWithinRange(dayYmd, b.start, b.end))
+    .sort((a, b) => (a.title || '').localeCompare(b.title || ''))
 }
