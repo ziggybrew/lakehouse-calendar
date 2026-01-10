@@ -49,7 +49,6 @@ export default function Calendar() {
     []
   )
 
-  // FullCalendar expects `events` in a compatible format. Bookings already match well.
   const events = bookings
 
   const [draft, setDraft] = useState<DraftBooking | null>(null)
@@ -85,7 +84,6 @@ export default function Calendar() {
   }
 
   function onDayClick(arg: DateClickArg) {
-    // arg.dateStr is YYYY-MM-DD in the calendar's local context
     setActiveDay(arg.dateStr)
   }
 
@@ -109,18 +107,24 @@ export default function Calendar() {
   }, [bookings, activeDay])
 
   return (
-    <div>
+    <div
+      style={{
+        minHeight: '100vh',
+        background: '#fffafa',
+        color: '#111827',
+        padding: 16,
+      }}
+    >
+      {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
         <h1 style={{ margin: 0 }}>Calendar</h1>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
-          <span style={{ fontSize: 12, opacity: 0.75 }}>
-            Click a day to view details. Overlaps are allowed.
-          </span>
-          <button onClick={openBookingModal}>Book dates</button>
+          <button onClick={openBookingModal}>Book</button>
         </div>
       </div>
 
+      {/* Calendar */}
       <FullCalendar
         plugins={[dayGridPlugin, interactionPlugin]}
         initialView="dayGridMonth"
@@ -137,12 +141,12 @@ export default function Calendar() {
 
       {/* Day Details Modal */}
       {activeDay && (
-        <Modal onClose={closeDayModal} title={`Details for ${activeDay}`}>
+        <Modal onClose={closeDayModal} title={`${activeDay}`}>
           {dayBookings.length === 0 ? (
             <div style={{ fontSize: 14 }}>
-              <strong>No entries</strong>
+              <strong>No one is booked</strong>
               <div style={{ marginTop: 6, opacity: 0.8 }}>
-                Use “Book dates” to add a presence entry for this timeframe.
+                Use “Book" to indicate you will be here on this date!
               </div>
             </div>
           ) : (
@@ -156,9 +160,15 @@ export default function Calendar() {
                     padding: 12,
                   }}
                 >
-                  <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between' }}>
+                  <div
+                    style={{
+                      display: 'flex',
+                      alignItems: 'baseline',
+                      justifyContent: 'space-between',
+                    }}
+                  >
                     <strong>{b.title}</strong>
-                    <span style={{ fontSize: 12, opacity: 0.75 }}>
+                    <span style={{ fontSize: 16, opacity: 0.75 }}>
                       {b.start} → {toInclusiveEnd(b.end)}
                     </span>
                   </div>
@@ -166,25 +176,27 @@ export default function Calendar() {
                   {b.notes ? (
                     <div style={{ marginTop: 8, fontSize: 13, opacity: 0.9 }}>{b.notes}</div>
                   ) : (
-                    <div style={{ marginTop: 8, fontSize: 13, opacity: 0.6 }}>No notes provided.</div>
+                    <div style={{ marginTop: 8, fontSize: 13, opacity: 0.6 }}>
+                      No notes provided.
+                    </div>
                   )}
                 </div>
               ))}
             </div>
           )}
 
-          <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
+          {/* <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
             <button onClick={closeDayModal}>Close</button>
-          </div>
+          </div> */}
         </Modal>
       )}
 
       {/* Booking Modal */}
       {draft && (
-        <Modal onClose={closeBookingModal} title="New entry">
+        <Modal onClose={closeBookingModal} title="Book Your Dates!">
           <div style={{ marginTop: 8, display: 'grid', gap: 12 }}>
             <div>
-              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Start date</div>
+              <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>Start date</div>
               <input
                 type="date"
                 value={draft.start}
@@ -193,16 +205,20 @@ export default function Calendar() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>End date (inclusive)</div>
+              <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>
+                End date
+              </div>
               <input
                 type="date"
                 value={toInclusiveEnd(draft.end)}
-                onChange={(e) => setDraft({ ...draft, end: toExclusiveEnd(e.target.value) })}
+                onChange={(e) =>
+                  setDraft({ ...draft, end: toExclusiveEnd(e.target.value) })
+                }
               />
             </div>
 
             <div>
-              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Label</div>
+              <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>Name(s)</div>
               <input
                 type="text"
                 placeholder="e.g., Zack, Mom/Dad, Cousins"
@@ -213,7 +229,9 @@ export default function Calendar() {
             </div>
 
             <div>
-              <div style={{ fontSize: 12, opacity: 0.7, marginBottom: 4 }}>Notes (optional)</div>
+              <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>
+                Notes (optional)
+              </div>
               <textarea
                 placeholder="Anything helpful..."
                 rows={3}
@@ -223,16 +241,16 @@ export default function Calendar() {
               />
             </div>
 
-            <div style={{ fontSize: 12, opacity: 0.7 }}>
-              Next steps include: persisting entries, adding authentication, and improving the display of overlapping
-              entries.
-            </div>
+            {/* <div style={{ fontSize: 16, opacity: 0.7 }}>
+              Next steps include: persisting entries, adding authentication, and
+              improving the display of overlapping entries.
+            </div> */}
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
             <button onClick={closeBookingModal}>Cancel</button>
             <button onClick={onCreateEntryStub} disabled={!draft.start || !draft.end}>
-              Create entry (stub)
+              Submit
             </button>
           </div>
         </Modal>
@@ -241,7 +259,11 @@ export default function Calendar() {
   )
 }
 
-function Modal(props: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Modal(props: {
+  title: string
+  onClose: () => void
+  children: React.ReactNode
+}) {
   return (
     <div
       role="dialog"
@@ -270,9 +292,16 @@ function Modal(props: { title: string; onClose: () => void; children: React.Reac
         }}
         onClick={(e) => e.stopPropagation()}
       >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            gap: 12,
+          }}
+        >
           <strong>{props.title}</strong>
-          <button onClick={props.onClose}>Close</button>
+          <button onClick={props.onClose}>X</button>
         </div>
 
         <div style={{ marginTop: 12 }}>{props.children}</div>
@@ -282,8 +311,7 @@ function Modal(props: { title: string; onClose: () => void; children: React.Reac
 }
 
 /**
- * Booking ranges are stored as end-exclusive to avoid off-by-one errors.
- * The UI displays inclusive end dates for readability.
+ * Utilities
  */
 
 function pad2(n: number) {
@@ -321,8 +349,11 @@ function toExclusiveEnd(inclusiveEndYmd: string) {
   return formatYmd(d)
 }
 
-function isDayWithinRange(dayYmd: string, startYmd: string, endExclusiveYmd: string) {
-  // All strings are YYYY-MM-DD; lexical comparison works.
+function isDayWithinRange(
+  dayYmd: string,
+  startYmd: string,
+  endExclusiveYmd: string
+) {
   return startYmd <= dayYmd && dayYmd < endExclusiveYmd
 }
 
