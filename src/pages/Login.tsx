@@ -13,11 +13,31 @@ export default function Login() {
         overflow: 'hidden',
       }}
     >
+        {/* Title */}
+        <div
+        style={{
+            position: 'absolute',
+            top: '7%',
+            left: '10%',
+            color: '#ffffff',
+            fontSize: 44,
+            fontWeight: 400,
+            letterSpacing: 0.5,
+            fontFamily:
+            '"Allura", "Dancing Script", "Pacifico", "Segoe Script", cursive',
+            textShadow: '0 2px 6px rgba(0, 0, 0, 0.45)',
+            transform: 'rotate(-1deg)',
+            userSelect: 'none',
+            pointerEvents: 'none',
+        }}
+        >
+        Lakehouse Calendar
+        </div>
       {/* Button group */}
       <div
         style={{
           position: 'absolute',
-          left: '20%',
+          left: '15%',
           bottom: '9%',
           width: 'min(320px, 70vw)',
         }}
@@ -59,13 +79,14 @@ const baseBtn: React.CSSProperties = {
   padding: '12px 12px',
   borderRadius: 12,
   border: '1px solid rgba(255,255,255,0.22)',
-  color: '#ffffff',
+  color: '#FFFFFF',
   fontWeight: 700,
   fontSize: 14,
   cursor: 'pointer',
   backdropFilter: 'blur(10px)',
   WebkitBackdropFilter: 'blur(10px)',
   letterSpacing: 0.2,
+  textShadow: '0 .5px .5px rgba(0, 0, 0, 0.45)',
 }
 
 const primaryBtn: React.CSSProperties = {
@@ -75,5 +96,6 @@ const primaryBtn: React.CSSProperties = {
 
 const ghostBtn: React.CSSProperties = {
   ...baseBtn,
-  background: 'rgba(0, 0, 0, 0.25)',
+  background: 'rgba(255, 255, 255, 0.14)',
+  border: '1px solid rgba(255, 255, 255, 0.28)',
 }
