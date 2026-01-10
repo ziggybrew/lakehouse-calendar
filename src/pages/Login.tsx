@@ -7,59 +7,73 @@ export default function Login() {
   return (
     <div
       style={{
-        minHeight: '100vh',
-        display: 'grid',
-        placeItems: 'center',
-        padding: 16,
+        height: '100dvh',
+        width: '100%',
+        position: 'relative',
+        overflow: 'hidden',
       }}
     >
-      <div style={{ width: 'min(360px, 100%)', display: 'grid', gap: 12 }}>
-        <button
-          type="button"
-          onClick={() => {
-            alert('Login flow not implemented yet.')
+      {/* Button group */}
+      <div
+        style={{
+          position: 'absolute',
+          left: '20%',
+          bottom: '9%',
+          width: 'min(320px, 70vw)',
+        }}
+      >
+        <div
+          style={{
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            gap: 10,
           }}
-          style={primaryBtn}
         >
-          Login
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              alert('Login flow not implemented yet.')
+            }}
+            style={primaryBtn}
+          >
+            Login
+          </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            navigate('/calendar')
-          }}
-          style={ghostBtn}
-        >
-          Guest Login
-        </button>
+          <button
+            type="button"
+            onClick={() => {
+              navigate('/calendar')
+            }}
+            style={ghostBtn}
+          >
+            Guest Login
+          </button>
+        </div>
       </div>
     </div>
   )
 }
 
-const primaryBtn: React.CSSProperties = {
+const baseBtn: React.CSSProperties = {
   width: '100%',
-  padding: '14px 16px',
-  borderRadius: 14,
-  border: '1px solid rgba(255,255,255,0.18)',
-  background: 'rgba(17, 24, 39, 0.78)',
+  padding: '12px 12px',
+  borderRadius: 12,
+  border: '1px solid rgba(255,255,255,0.22)',
   color: '#ffffff',
-  fontWeight: 750,
-  fontSize: 16,
+  fontWeight: 700,
+  fontSize: 14,
   cursor: 'pointer',
   backdropFilter: 'blur(10px)',
+  WebkitBackdropFilter: 'blur(10px)',
+  letterSpacing: 0.2,
+}
+
+const primaryBtn: React.CSSProperties = {
+  ...baseBtn,
+  background: 'rgba(17, 24, 39, 0.80)',
 }
 
 const ghostBtn: React.CSSProperties = {
-  width: '100%',
-  padding: '14px 16px',
-  borderRadius: 14,
-  border: '1px solid rgba(255,255,255,0.28)',
-  background: 'rgba(255, 255, 255, 0.14)',
-  color: '#ffffff',
-  fontWeight: 750,
-  fontSize: 16,
-  cursor: 'pointer',
-  backdropFilter: 'blur(10px)',
+  ...baseBtn,
+  background: 'rgba(0, 0, 0, 0.25)',
 }
