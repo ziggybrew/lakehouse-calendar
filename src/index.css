@@ -59,6 +59,24 @@ body::after {
   pointer-events: none;
 }
 
+@media (max-width: 1024px) {
+  body::before {
+    /* display: none; */
+  }
+
+  body::after {
+    background-size: contain;
+    background-position: center;
+    filter: none;
+    transform: none;
+    opacity: 1;
+  }
+
+  #root::before {
+    background: rgba(0, 0, 0, 0.28);
+  }
+}
+
 #root {
   position: relative;
   z-index: 3;
@@ -80,6 +98,12 @@ body {
   place-items: center;
   min-width: 320px;
   min-height: 100vh;
+}
+
+html,
+body {
+  height: 100%;
+  overflow: hidden;
 }
 
 h1 {
