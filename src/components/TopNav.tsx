@@ -1,6 +1,6 @@
 // src/components/TopNav.tsx
 import { useEffect, useMemo, useState } from 'react'
-import { NavLink, useLocation } from 'react-router-dom'
+import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 
 type UserInfo = {
   displayName: string
@@ -10,6 +10,7 @@ type UserInfo = {
 export default function TopNav() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
+  const navigate = useNavigate()
 
   // Placeholder user info for now (auth wiring comes later)
   const user: UserInfo = useMemo(
@@ -90,8 +91,7 @@ export default function TopNav() {
                 type="button"
                 style={styles.secondaryBtn}
                 onClick={() => {
-                  // Placeholder for later. This can clear session mode / logout.
-                  alert('Logout not implemented yet.')
+                  navigate('/login')
                 }}
               >
                 Logout

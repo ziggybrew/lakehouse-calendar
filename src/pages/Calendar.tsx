@@ -117,7 +117,7 @@ export default function Calendar() {
     >
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 12 }}>
-        <h1 style={{ margin: 0 }}>Calendar</h1>
+        <h1 style={{ margin: 0, fontSize: 28 }}>Calendar</h1>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
           <button onClick={openBookingModal}>Book</button>
@@ -133,7 +133,7 @@ export default function Calendar() {
         selectable={false}
         dateClick={onDayClick}
         headerToolbar={{
-          left: 'prev,next today',
+          left: 'prev,next',
           center: 'title',
           right: '',
         }}

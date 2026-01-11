@@ -49,16 +49,6 @@ body::after {
   opacity: 0.95;
 }
 
-/* Dark overlay for contrast */
-#root::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  z-index: 2;
-  background: rgba(0, 0, 0, 0.38);
-  pointer-events: none;
-}
-
 /* Tablet: keep full image visible (current behavior) */
 @media (max-width: 1024px) and (min-width: 641px) {
   body::after {
