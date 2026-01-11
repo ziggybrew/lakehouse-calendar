@@ -110,8 +110,8 @@ export default function Calendar() {
     <div
       style={{
         minHeight: '100vh',
-        background: '#fffafa',
-        color: '#111827',
+        background: '#eef4f3',
+        color: '#1f2933',
         padding: 16,
       }}
     >
@@ -124,24 +124,76 @@ export default function Calendar() {
         </div>
       </div>
 
+      <style>
+        {`
+          /* FullCalendar palette: soft lake tones */
+          .fc {
+            --fc-border-color: #d6e6e3;
+            --fc-page-bg-color: #ffffff;
+            --fc-neutral-bg-color: #ffffff;
+            --fc-neutral-text-color: #1f2933;
+
+            --fc-today-bg-color: rgba(95, 167, 163, 0.18);
+
+            --fc-event-bg-color: #2f6f73;
+            --fc-event-border-color: #2f6f73;
+            --fc-event-text-color: #ffffff;
+
+            --fc-button-bg-color: #2f6f73;
+            --fc-button-border-color: #2f6f73;
+            --fc-button-text-color: #ffffff;
+
+            --fc-button-hover-bg-color: #5fa7a3;
+            --fc-button-hover-border-color: #5fa7a3;
+
+            --fc-button-active-bg-color: #255b5e;
+            --fc-button-active-border-color: #255b5e;
+          }
+
+          .fc .fc-toolbar-title {
+            color: #1f2933;
+            font-weight: 800;
+          }
+
+          .fc .fc-col-header-cell-cushion,
+          .fc .fc-daygrid-day-number {
+            color: #1f2933;
+          }
+        `}
+      </style>
+
       {/* Calendar */}
-      <FullCalendar
-        plugins={[dayGridPlugin, interactionPlugin]}
-        initialView="dayGridMonth"
-        height="auto"
-        events={events}
-        selectable={false}
-        dateClick={onDayClick}
-        headerToolbar={{
-          left: 'prev,next',
-          center: 'title',
-          right: '',
+      <div
+        style={{
+          background: '#ffffff',
+          border: '1px solid #d6e6e3',
+          borderRadius: 14,
+          padding: 12,
         }}
-      />
+      >
+        <FullCalendar
+          plugins={[dayGridPlugin, interactionPlugin]}
+          initialView="dayGridMonth"
+          height="auto"
+          events={events}
+          selectable={false}
+          dateClick={onDayClick}
+          headerToolbar={{
+            left: 'prev,next',
+            center: 'title',
+            right: '',
+          }}
+          titleFormat={{ year: 'numeric', month: '2-digit' }}
+          dayCellContent={(arg) => {
+            const d = arg.date
+            return `${d.getMonth() + 1}/${d.getDate()}`
+          }}
+        />
+      </div>
 
       {/* Day Details Modal */}
       {activeDay && (
-        <Modal onClose={closeDayModal} title={`${activeDay}`}>
+        <Modal onClose={closeDayModal} title={formatDisplayDate(activeDay)}>
           {dayBookings.length === 0 ? (
             <div style={{ fontSize: 14 }}>
               <strong>No one is booked</strong>
@@ -169,7 +221,7 @@ export default function Calendar() {
                   >
                     <strong>{b.title}</strong>
                     <span style={{ fontSize: 16, opacity: 0.75 }}>
-                      {b.start} → {toInclusiveEnd(b.end)}
+                      {formatDisplayDate(b.start)} → {formatDisplayDate(toInclusiveEnd(b.end))}
                     </span>
                   </div>
 
@@ -221,7 +273,6 @@ export default function Calendar() {
               <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>Name(s)</div>
               <input
                 type="text"
-                placeholder="e.g., Zack, Mom/Dad, Cousins"
                 value={draft.title}
                 onChange={(e) => setDraft({ ...draft, title: e.target.value })}
                 style={{ width: '100%' }}
@@ -233,7 +284,6 @@ export default function Calendar() {
                 Notes (optional)
               </div>
               <textarea
-                placeholder="Anything helpful..."
                 rows={3}
                 value={draft.notes}
                 onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
@@ -308,6 +358,11 @@ function Modal(props: {
       </div>
     </div>
   )
+}
+
+function formatDisplayDate(ymd: string) {
+  const [y, m, d] = ymd.split('-')
+  return `${m}/${d}/${y}`
 }
 
 /**
