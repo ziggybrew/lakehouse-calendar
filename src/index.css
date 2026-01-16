@@ -34,6 +34,7 @@ body::before {
   background-repeat: no-repeat;
   filter: blur(5px) saturate(1.05);
   transform: scale(1.08);
+  pointer-events: none;
 }
 
 /* Front layer: shows the full image (no crop) */
@@ -47,6 +48,7 @@ body::after {
   background-position: center;
   background-repeat: no-repeat;
   opacity: 0.95;
+  pointer-events: none;
 }
 
 /* Tablet: keep full image visible (current behavior) */
@@ -77,6 +79,7 @@ body::after {
   position: relative;
   z-index: 3;
   min-height: 100vh;
+  width: 100%;
 }
 
 a {
@@ -91,7 +94,8 @@ a:hover {
 html,
 body {
   height: 100%;
-  overflow: hidden;
+  overflow-x: hidden;
+  overflow-y: auto;
 }
 
 h1 {
