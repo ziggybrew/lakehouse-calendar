@@ -1,6 +1,7 @@
 // src/pages/Login.tsx
-import { useMemo, useState } from 'react'
+import { useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabaseClient'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -10,6 +11,10 @@ export default function Login() {
   const [code, setCode] = useState('')
   const [step, setStep] = useState<'email' | 'code'>('email')
 
+  const [isSending, setIsSending] = useState(false)
+  const [isVerifying, setIsVerifying] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
   const emailIsValid = useMemo(() => {
     const trimmed = email.trim()
     if (!trimmed) return false
@@ -18,27 +23,77 @@ export default function Login() {
   }, [email])
 
   function openLogin() {
+    setErrorMsg(null)
+    setIsSending(false)
+    setIsVerifying(false)
     setShowLogin(true)
     setStep('email')
     setCode('')
   }
 
   function closeLogin() {
+    setErrorMsg(null)
+    setIsSending(false)
+    setIsVerifying(false)
     setShowLogin(false)
   }
 
-  function onSubmitEmail(e: React.FormEvent) {
+  async function onSubmitEmail(e: FormEvent) {
     e.preventDefault()
+    setErrorMsg(null)
     if (!emailIsValid) return
-    // Temporary stub. When auth is implemented, this will request a one-time code to be emailed.
-    setStep('code')
+
+    setIsSending(true)
+    try {
+      const { error } = await supabase.auth.signInWithOtp({
+        email: email.trim(),
+        options: {
+          shouldCreateUser: true,
+        },
+      })
+
+      if (error) {
+        setErrorMsg(error.message)
+        return
+      }
+
+      setStep('code')
+      setCode('')
+    } finally {
+      setIsSending(false)
+    }
   }
 
-  function onSubmitCode(e: React.FormEvent) {
+  async function onSubmitCode(e: FormEvent) {
     e.preventDefault()
-    if (!code.trim()) return
-    // Temporary stub. When auth is implemented, this will verify the code and establish a session.
-    navigate('/calendar')
+    setErrorMsg(null)
+
+    const token = code.trim()
+    const trimmedEmail = email.trim()
+    if (!trimmedEmail || !token) return
+
+    setIsVerifying(true)
+    try {
+      const { data, error } = await supabase.auth.verifyOtp({
+        email: trimmedEmail,
+        token,
+        type: 'email',
+      })
+
+      if (error) {
+        setErrorMsg(error.message)
+        return
+      }
+
+      if (data.session) {
+        closeLogin()
+        navigate('/calendar')
+      } else {
+        setErrorMsg('Sign-in did not return a session. Try requesting a new code.')
+      }
+    } finally {
+      setIsVerifying(false)
+    }
   }
 
   return (
@@ -161,6 +216,22 @@ export default function Login() {
                 </svg>
               </button>
             </div>
+            {errorMsg ? (
+              <div
+                style={{
+                  marginTop: 10,
+                  padding: '10px 12px',
+                  borderRadius: 12,
+                  border: '1px solid rgba(154, 79, 79, 0.35)',
+                  background: 'rgba(154, 79, 79, 0.08)',
+                  color: '#9a4f4f',
+                  fontSize: 13,
+                  fontWeight: 700,
+                }}
+              >
+                {errorMsg}
+              </div>
+            ) : null}
 
             {step === 'email' ? (
               <form onSubmit={onSubmitEmail} style={{ marginTop: 14, display: 'grid', gap: 12 }}>
@@ -189,15 +260,15 @@ export default function Login() {
 
                 <button
                   type="submit"
-                  disabled={!emailIsValid}
+                  disabled={!emailIsValid || isSending}
                   style={{
                     height: 42,
                     borderRadius: 12,
                     border: '1px solid #2f6f73',
-                    background: emailIsValid ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
+                    background: emailIsValid && !isSending ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
                     color: '#ffffff',
                     fontWeight: 800,
-                    cursor: emailIsValid ? 'pointer' : 'not-allowed',
+                    cursor: emailIsValid && !isSending ? 'pointer' : 'not-allowed',
                   }}
                 >
                   Send code
@@ -213,6 +284,7 @@ export default function Login() {
                   <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>One-time code</span>
                   <input
                     inputMode="numeric"
+                    autoComplete="one-time-code"
                     value={code}
                     onChange={(e) => setCode(e.target.value)}
                     placeholder="123456"
@@ -232,6 +304,7 @@ export default function Login() {
                   <button
                     type="button"
                     onClick={() => {
+                      setErrorMsg(null)
                       setStep('email')
                       setCode('')
                     }}
@@ -251,16 +324,16 @@ export default function Login() {
 
                   <button
                     type="submit"
-                    disabled={!code.trim()}
+                    disabled={!code.trim() || isVerifying}
                     style={{
                       flex: 1,
                       height: 42,
                       borderRadius: 12,
                       border: '1px solid #2f6f73',
-                      background: code.trim() ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
+                      background: code.trim() && !isVerifying ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
                       color: '#ffffff',
                       fontWeight: 800,
-                      cursor: code.trim() ? 'pointer' : 'not-allowed',
+                      cursor: code.trim() && !isVerifying ? 'pointer' : 'not-allowed',
                     }}
                   >
                     Sign in
