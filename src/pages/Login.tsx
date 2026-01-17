@@ -10,6 +10,14 @@ export default function Login() {
   const [email, setEmail] = useState('')
   const [code, setCode] = useState('')
   const [step, setStep] = useState<'email' | 'code'>('email')
+  const [authMode, setAuthMode] = useState<'login' | 'register'>('login')
+
+  const [regEmail, setRegEmail] = useState('')
+  const [regFirstName, setRegFirstName] = useState('')
+  const [regLastName, setRegLastName] = useState('')
+  const [regPhone, setRegPhone] = useState('')
+  const [regInviteCode, setRegInviteCode] = useState('')
+  const [regSubmitted, setRegSubmitted] = useState(false)
 
   const [isSending, setIsSending] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
@@ -26,9 +34,40 @@ export default function Login() {
     setErrorMsg(null)
     setIsSending(false)
     setIsVerifying(false)
+    setAuthMode('login')
     setShowLogin(true)
-    setStep('email')
-    setCode('')
+    // Keep current login step/email so users can return to enter the code without re-entering details.
+  }
+
+  function openRegister() {
+    setErrorMsg(null)
+    setIsSending(false)
+    setIsVerifying(false)
+    setAuthMode('register')
+    setRegSubmitted(false)
+    setShowLogin(true)
+  }
+  function regEmailIsValid(value: string) {
+    const trimmed = value.trim()
+    if (!trimmed) return false
+    return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
+  }
+
+  function onSubmitRegister(e: FormEvent) {
+    e.preventDefault()
+    setErrorMsg(null)
+
+    const emailOk = regEmailIsValid(regEmail)
+    const firstOk = regFirstName.trim().length > 0
+    const lastOk = regLastName.trim().length > 0
+
+    if (!emailOk || !firstOk || !lastOk) {
+      setErrorMsg('Please enter email, first name, and last name.')
+      return
+    }
+
+    // UI-only stub for now. Next steps: persist request, rate-limit, and require admin approval.
+    setRegSubmitted(true)
   }
 
   function closeLogin() {
@@ -48,7 +87,7 @@ export default function Login() {
       const { error } = await supabase.auth.signInWithOtp({
         email: email.trim(),
         options: {
-          shouldCreateUser: true,
+          shouldCreateUser: false,
         },
       })
 
@@ -154,44 +193,55 @@ export default function Login() {
           <button
             type="button"
             onClick={() => {
-              navigate('/calendar')
+              openRegister()
             }}
             style={ghostBtn}
           >
-            Guest Login
+            Register
           </button>
         </div>
       </div>
       {showLogin && (
         <div
-          role="dialog"
-          aria-modal="true"
-          onClick={closeLogin}
+          role="region"
+          aria-label={authMode === 'login' ? 'Sign in' : 'Register'}
           style={{
-            position: 'fixed',
+            position: 'absolute',
             inset: 0,
-            zIndex: 9999,
-            background: 'rgba(0, 0, 0, 0.55)',
-            backdropFilter: 'blur(2px)',
+            zIndex: 10,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: 16,
+            boxSizing: 'border-box',
           }}
         >
           <div
-            onClick={(e) => e.stopPropagation()}
             style={{
-              width: 'min(420px, 100%)',
+              width: '100%',
+              maxWidth: 520,
+              margin: '0 auto',
               background: '#ffffff',
               color: '#1f2933',
               borderRadius: 14,
               padding: 18,
               boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
+              border: '1px solid rgba(214, 230, 227, 0.9)',
+              boxSizing: 'border-box',
             }}
           >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#2f6f73' }}>Sign in</div>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 12,
+              }}
+            >
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#2f6f73' }}>
+                {authMode === 'login' ? 'Sign in' : 'Register'}
+              </div>
+
               <button
                 type="button"
                 onClick={closeLogin}
@@ -211,11 +261,24 @@ export default function Login() {
                 }}
                 aria-label="Close"
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display: 'block' }}>
-                  <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+                <svg
+                  width="18"
+                  height="18"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  aria-hidden="true"
+                  style={{ display: 'block' }}
+                >
+                  <path
+                    d="M6 6l12 12M18 6L6 18"
+                    stroke="currentColor"
+                    strokeWidth="2"
+                    strokeLinecap="round"
+                  />
                 </svg>
               </button>
             </div>
+
             {errorMsg ? (
               <div
                 style={{
@@ -233,114 +296,360 @@ export default function Login() {
               </div>
             ) : null}
 
-            {step === 'email' ? (
-              <form onSubmit={onSubmitEmail} style={{ marginTop: 14, display: 'grid', gap: 12 }}>
-                <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
-                  Email sign-in uses a one-time code. Passwords are not required.
-                </div>
+            {authMode === 'login' ? (
+              step === 'email' ? (
+                <form onSubmit={onSubmitEmail} style={{ marginTop: 14, display: 'grid', gap: 12 }}>
+                  <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
+                    Enter the email address associated with an approved account to receive a one-time code.
+                  </div>
 
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>Email</span>
-                  <input
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="name@example.com"
-                    autoComplete="email"
-                    style={{
-                      height: 40,
-                      borderRadius: 12,
-                      border: '1px solid #d6e6e3',
-                      padding: '0 12px',
-                      fontSize: 14,
-                      outline: 'none',
-                    }}
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  disabled={!emailIsValid || isSending}
-                  style={{
-                    height: 42,
-                    borderRadius: 12,
-                    border: '1px solid #2f6f73',
-                    background: emailIsValid && !isSending ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
-                    color: '#ffffff',
-                    fontWeight: 800,
-                    cursor: emailIsValid && !isSending ? 'pointer' : 'not-allowed',
-                  }}
-                >
-                  Send code
-                </button>
-              </form>
-            ) : (
-              <form onSubmit={onSubmitCode} style={{ marginTop: 14, display: 'grid', gap: 12 }}>
-                <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
-                  Enter the code sent to <strong>{email.trim()}</strong>.
-                </div>
-
-                <label style={{ display: 'grid', gap: 6 }}>
-                  <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>One-time code</span>
-                  <input
-                    inputMode="numeric"
-                    autoComplete="one-time-code"
-                    value={code}
-                    onChange={(e) => setCode(e.target.value)}
-                    placeholder="123456"
-                    style={{
-                      height: 40,
-                      borderRadius: 12,
-                      border: '1px solid #d6e6e3',
-                      padding: '0 12px',
-                      fontSize: 14,
-                      outline: 'none',
-                      letterSpacing: 2,
-                    }}
-                  />
-                </label>
-
-                <div style={{ display: 'flex', gap: 10 }}>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setErrorMsg(null)
-                      setStep('email')
-                      setCode('')
-                    }}
-                    style={{
-                      flex: 1,
-                      height: 42,
-                      borderRadius: 12,
-                      border: '1px solid #d6e6e3',
-                      background: '#ffffff',
-                      color: '#2f6f73',
-                      fontWeight: 800,
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Back
-                  </button>
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>Email</span>
+                    <input
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="name@example.com"
+                      autoComplete="email"
+                      style={{
+                        height: 40,
+                        borderRadius: 12,
+                        border: '1px solid #d6e6e3',
+                        padding: '0 12px',
+                        fontSize: 14,
+                        outline: 'none',
+                      }}
+                    />
+                  </label>
 
                   <button
                     type="submit"
-                    disabled={!code.trim() || isVerifying}
+                    disabled={!emailIsValid || isSending}
                     style={{
-                      flex: 1,
                       height: 42,
                       borderRadius: 12,
                       border: '1px solid #2f6f73',
-                      background: code.trim() && !isVerifying ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
+                      background: emailIsValid && !isSending ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
                       color: '#ffffff',
                       fontWeight: 800,
-                      cursor: code.trim() && !isVerifying ? 'pointer' : 'not-allowed',
+                      cursor: emailIsValid && !isSending ? 'pointer' : 'not-allowed',
                     }}
                   >
-                    Sign in
+                    Send code
                   </button>
-                </div>
-              </form>
+                </form>
+              ) : (
+                <form onSubmit={onSubmitCode} style={{ marginTop: 14, display: 'grid', gap: 12 }}>
+                  <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
+                    Enter the code sent to <strong>{email.trim()}</strong>.
+                  </div>
+
+                  <label style={{ display: 'grid', gap: 6 }}>
+                    <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>One-time code</span>
+                    <input
+                      inputMode="numeric"
+                      autoComplete="one-time-code"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value)}
+                      placeholder="123456"
+                      style={{
+                        height: 40,
+                        borderRadius: 12,
+                        border: '1px solid #d6e6e3',
+                        padding: '0 12px',
+                        fontSize: 14,
+                        outline: 'none',
+                        letterSpacing: 2,
+                      }}
+                    />
+                  </label>
+
+                  <div style={{ display: 'flex', gap: 10 }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorMsg(null)
+                        setStep('email')
+                        setCode('')
+                      }}
+                      style={{
+                        flex: 1,
+                        height: 42,
+                        borderRadius: 12,
+                        border: '1px solid #d6e6e3',
+                        background: '#ffffff',
+                        color: '#2f6f73',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Change email
+                    </button>
+
+                    <button
+                      type="submit"
+                      disabled={!code.trim() || isVerifying}
+                      style={{
+                        flex: 1,
+                        height: 42,
+                        borderRadius: 12,
+                        border: '1px solid #2f6f73',
+                        background: code.trim() && !isVerifying ? '#2f6f73' : 'rgba(47, 111, 115, 0.4)',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        cursor: code.trim() && !isVerifying ? 'pointer' : 'not-allowed',
+                      }}
+                    >
+                      Sign in
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: 2, fontSize: 12, opacity: 0.75 }}>
+                    Code not received? Use “Change email” and click “Send code” again.
+                  </div>
+                </form>
+              )
+            ) : (
+              <div style={{ marginTop: 14 }}>
+                {!regSubmitted ? (
+                  <form onSubmit={onSubmitRegister} style={{ display: 'grid', gap: 12 }}>
+                    <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
+                      Registration requests require admin approval before sign-in is allowed.
+                    </div>
+
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>Email</span>
+                      <input
+                        type="email"
+                        value={regEmail}
+                        onChange={(e) => setRegEmail(e.target.value)}
+                        placeholder="name@example.com"
+                        autoComplete="email"
+                        style={{
+                          height: 40,
+                          borderRadius: 12,
+                          border: '1px solid #d6e6e3',
+                          padding: '0 12px',
+                          fontSize: 14,
+                          outline: 'none',
+                        }}
+                      />
+                    </label>
+
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
+                        columnGap: 12,
+                        rowGap: 12,
+                        width: '100%',
+                        boxSizing: 'border-box',
+                      }}
+                    >
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>First name</span>
+                        <input
+                          type="text"
+                          value={regFirstName}
+                          onChange={(e) => setRegFirstName(e.target.value)}
+                          placeholder="First"
+                          autoComplete="given-name"
+                          style={{
+                            height: 40,
+                            borderRadius: 12,
+                            border: '1px solid #d6e6e3',
+                            padding: '0 12px',
+                            fontSize: 14,
+                            outline: 'none',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </label>
+
+                      <label style={{ display: 'grid', gap: 6 }}>
+                        <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>Last name</span>
+                        <input
+                          type="text"
+                          value={regLastName}
+                          onChange={(e) => setRegLastName(e.target.value)}
+                          placeholder="Last"
+                          autoComplete="family-name"
+                          style={{
+                            height: 40,
+                            borderRadius: 12,
+                            border: '1px solid #d6e6e3',
+                            padding: '0 12px',
+                            fontSize: 14,
+                            outline: 'none',
+                            width: '100%',
+                            boxSizing: 'border-box',
+                          }}
+                        />
+                      </label>
+                    </div>
+
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>
+                        Phone (optional)
+                      </span>
+                      <input
+                        type="tel"
+                        value={regPhone}
+                        onChange={(e) => setRegPhone(e.target.value)}
+                        placeholder="(555) 555-5555"
+                        autoComplete="tel"
+                        style={{
+                          height: 40,
+                          borderRadius: 12,
+                          border: '1px solid #d6e6e3',
+                          padding: '0 12px',
+                          fontSize: 14,
+                          outline: 'none',
+                        }}
+                      />
+                    </label>
+
+                    <label style={{ display: 'grid', gap: 6 }}>
+                      <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>
+                        Invite code (optional)
+                      </span>
+                      <input
+                        type="text"
+                        value={regInviteCode}
+                        onChange={(e) => setRegInviteCode(e.target.value)}
+                        placeholder="Provided by admin"
+                        autoComplete="off"
+                        style={{
+                          height: 40,
+                          borderRadius: 12,
+                          border: '1px solid #d6e6e3',
+                          padding: '0 12px',
+                          fontSize: 14,
+                          outline: 'none',
+                        }}
+                      />
+                    </label>
+
+                    <button
+                      type="submit"
+                      style={{
+                        height: 42,
+                        borderRadius: 12,
+                        border: '1px solid #2f6f73',
+                        background: '#2f6f73',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Request access
+                    </button>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorMsg(null)
+                        setAuthMode('login')
+                      }}
+                      style={{
+                        height: 42,
+                        borderRadius: 12,
+                        border: '1px solid #d6e6e3',
+                        background: '#ffffff',
+                        color: '#2f6f73',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Back to sign in
+                    </button>
+                  </form>
+                ) : (
+                  <div style={{ display: 'grid', gap: 10 }}>
+                    <div style={{ fontSize: 14, fontWeight: 900, color: '#2f6f73' }}>
+                      Request submitted
+                    </div>
+                    <div style={{ fontSize: 13, opacity: 0.85 }}>
+                      Access requires admin approval. Sign-in will work after the account is activated.
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setErrorMsg(null)
+                        setAuthMode('login')
+                      }}
+                      style={{
+                        height: 42,
+                        borderRadius: 12,
+                        border: '1px solid #2f6f73',
+                        background: '#2f6f73',
+                        color: '#ffffff',
+                        fontWeight: 800,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Return to sign in
+                    </button>
+                  </div>
+                )}
+              </div>
             )}
+
+            <div
+              style={{
+                marginTop: 14,
+                paddingTop: 12,
+                borderTop: '1px solid #d6e6e3',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                gap: 10,
+                flexWrap: 'wrap',
+                fontSize: 12,
+              }}
+            >
+              <button
+                type="button"
+                onClick={() => {
+                  closeLogin()
+                  navigate('/calendar?mode=demo')
+                }}
+                style={{
+                  border: 'none',
+                  background: 'transparent',
+                  padding: 0,
+                  color: '#2f6f73',
+                  fontWeight: 800,
+                  cursor: 'pointer',
+                  textDecoration: 'underline',
+                }}
+              >
+                View demo
+              </button>
+
+              {authMode === 'login' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMsg(null)
+                    setAuthMode('register')
+                    setRegSubmitted(false)
+                  }}
+                  style={{
+                    border: 'none',
+                    background: 'transparent',
+                    padding: 0,
+                    color: '#2f6f73',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    textDecoration: 'underline',
+                  }}
+                >
+                  Need access? Register
+                </button>
+              ) : null}
+            </div>
           </div>
         </div>
       )}
