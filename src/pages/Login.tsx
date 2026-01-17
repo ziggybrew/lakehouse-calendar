@@ -22,6 +22,7 @@ export default function Login() {
   const [isSending, setIsSending] = useState(false)
   const [isVerifying, setIsVerifying] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const [isRegistering, setIsRegistering] = useState(false)
 
   const emailIsValid = useMemo(() => {
     const trimmed = email.trim()
@@ -34,6 +35,7 @@ export default function Login() {
     setErrorMsg(null)
     setIsSending(false)
     setIsVerifying(false)
+    setIsRegistering(false)
     setAuthMode('login')
     setShowLogin(true)
     // Keep current login step/email so users can return to enter the code without re-entering details.
@@ -43,6 +45,7 @@ export default function Login() {
     setErrorMsg(null)
     setIsSending(false)
     setIsVerifying(false)
+    setIsRegistering(false)
     setAuthMode('register')
     setRegSubmitted(false)
     setShowLogin(true)
@@ -53,7 +56,7 @@ export default function Login() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
   }
 
-  function onSubmitRegister(e: FormEvent) {
+  async function onSubmitRegister(e: FormEvent) {
     e.preventDefault()
     setErrorMsg(null)
 
@@ -66,14 +69,42 @@ export default function Login() {
       return
     }
 
-    // UI-only stub for now. Next steps: persist request, rate-limit, and require admin approval.
-    setRegSubmitted(true)
+    setIsRegistering(true)
+    try {
+      const payload = {
+        email: regEmail.trim().toLowerCase(),
+        first_name: regFirstName.trim(),
+        last_name: regLastName.trim(),
+        phone: regPhone.trim() ? regPhone.trim() : null,
+        invite_code: regInviteCode.trim() ? regInviteCode.trim() : null,
+        // status defaults to 'pending' in the database
+      }
+
+      const { error } = await supabase.from('access_requests').insert(payload)
+
+      if (error) {
+        // 23505 = unique_violation (likely a pending request already exists for this email)
+        if ((error as any).code === '23505') {
+          setErrorMsg('A pending request already exists for this email.')
+          setRegSubmitted(true)
+          return
+        }
+
+        setErrorMsg(error.message)
+        return
+      }
+
+      setRegSubmitted(true)
+    } finally {
+      setIsRegistering(false)
+    }
   }
 
   function closeLogin() {
     setErrorMsg(null)
     setIsSending(false)
     setIsVerifying(false)
+    setIsRegistering(false)
     setShowLogin(false)
   }
 
@@ -533,17 +564,18 @@ export default function Login() {
 
                     <button
                       type="submit"
+                      disabled={isRegistering}
                       style={{
                         height: 42,
                         borderRadius: 12,
                         border: '1px solid #2f6f73',
-                        background: '#2f6f73',
+                        background: isRegistering ? 'rgba(47, 111, 115, 0.7)' : '#2f6f73',
                         color: '#ffffff',
                         fontWeight: 800,
-                        cursor: 'pointer',
+                        cursor: isRegistering ? 'not-allowed' : 'pointer',
                       }}
                     >
-                      Request access
+                      {isRegistering ? 'Submitting...' : 'Request access'}
                     </button>
 
                     <button
