@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 
 type AdminUser = {
   id: string
@@ -6,6 +7,17 @@ type AdminUser = {
   email: string
   role: 'admin' | 'member'
   isActive: boolean
+}
+
+type AccessRequest = {
+  id: string
+  email: string
+  first_name: string
+  last_name: string
+  phone: string | null
+  invite_code: string | null
+  status: 'pending' | 'approved' | 'rejected'
+  created_at: string
 }
 
 type Booking = {
@@ -89,6 +101,10 @@ export default function Admin() {
   const [users, setUsers] = useState<AdminUser[]>(initialUsers)
   const [bookings, setBookings] = useState<Booking[]>(initialBookings)
 
+  const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([])
+  const [accessLoading, setAccessLoading] = useState(false)
+  const [accessError, setAccessError] = useState<string | null>(null)
+
   const [draftOpen, setDraftOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
   const [draft, setDraft] = useState<BookingDraft>({
@@ -98,6 +114,84 @@ export default function Admin() {
     notes: '',
     isBlocked: false,
   })
+
+  async function loadAccessRequests() {
+    setAccessLoading(true)
+    setAccessError(null)
+    try {
+      const { data, error } = await supabase
+        .from('access_requests')
+        .select('id,email,first_name,last_name,phone,invite_code,status,created_at')
+        .order('created_at', { ascending: false })
+
+      if (error) {
+        setAccessError(error.message)
+        setAccessRequests([])
+        return
+      }
+
+      setAccessRequests((data || []) as AccessRequest[])
+    } finally {
+      setAccessLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadAccessRequests()
+  }, [])
+
+  async function approveRequest(r: AccessRequest) {
+    const ok = window.confirm(`Approve access for ${r.email}?`)
+    if (!ok) return
+
+    // 1) mark request approved
+    const { error: reqErr } = await supabase
+      .from('access_requests')
+      .update({ status: 'approved' })
+      .eq('id', r.id)
+
+    if (reqErr) {
+      alert(reqErr.message)
+      return
+    }
+
+    // 2) attempt to activate an existing profile (if the auth user already exists)
+    const { error: profErr, count } = await supabase
+      .from('profiles')
+      .update({ is_active: true })
+      .eq('email', r.email)
+      .select('id', { count: 'exact', head: true })
+
+    if (profErr) {
+      // Access request is still approved; profile activation can be retried later.
+      alert(`Approved request, but profile activation failed: ${profErr.message}`)
+      await loadAccessRequests()
+      return
+    }
+
+    if (!count) {
+      alert('Approved request. Note: no existing auth user/profile was found for this email yet.')
+    }
+
+    await loadAccessRequests()
+  }
+
+  async function rejectRequest(r: AccessRequest) {
+    const ok = window.confirm(`Reject access for ${r.email}?`)
+    if (!ok) return
+
+    const { error } = await supabase
+      .from('access_requests')
+      .update({ status: 'rejected' })
+      .eq('id', r.id)
+
+    if (error) {
+      alert(error.message)
+      return
+    }
+
+    await loadAccessRequests()
+  }
 
   function toggleUserActive(userId: string) {
     setUsers((prev) =>
@@ -176,6 +270,107 @@ export default function Admin() {
           Admin-only tools for managing users and entries.
         </div>
       </div>
+
+      {/* Access Requests */}
+      <Section
+        title="Access requests"
+        description="Review new registration requests. Approving activates an existing profile if the auth user already exists."
+        rightAction={
+          <button type="button" onClick={loadAccessRequests} style={secondaryBtn}>
+            Refresh
+          </button>
+        }
+      >
+        <div style={cardStyle}>
+          {accessError ? (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                border: '1px solid rgba(154, 79, 79, 0.35)',
+                background: 'rgba(154, 79, 79, 0.08)',
+                color: '#9a4f4f',
+                fontSize: 13,
+                fontWeight: 900,
+              }}
+            >
+              {accessError}
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: accessError ? 12 : 0 }}>
+            {accessLoading ? (
+              <div style={{ opacity: 0.75, fontSize: 13 }}>Loading access requests…</div>
+            ) : (
+              <div style={gridStyle}>
+                {accessRequests.filter((r) => r.status === 'pending').length === 0 ? (
+                  <div style={itemCardStyle}>
+                    <div style={{ fontWeight: 900, color: '#1f2933' }}>No pending requests</div>
+                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                      New registration requests will appear here.
+                    </div>
+                  </div>
+                ) : (
+                  accessRequests
+                    .filter((r) => r.status === 'pending')
+                    .map((r) => (
+                      <div key={r.id} style={itemCardStyle}>
+                        <div
+                          style={{
+                            display: 'flex',
+                            alignItems: 'flex-start',
+                            justifyContent: 'space-between',
+                            gap: 12,
+                          }}
+                        >
+                          <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 900, color: '#1f2933' }}>
+                              {r.first_name} {r.last_name}
+                            </div>
+                            <div style={{ fontSize: 12, opacity: 0.8, wordBreak: 'break-word' }}>
+                              {r.email}
+                            </div>
+                          </div>
+
+                          <span style={chip('#5fa7a3')}>pending</span>
+                        </div>
+
+                        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
+                          Requested: {formatDisplayDateTime(r.created_at)}
+                        </div>
+
+                        {r.phone ? (
+                          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+                            Phone: {r.phone}
+                          </div>
+                        ) : null}
+
+                        {r.invite_code ? (
+                          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
+                            Invite code: <span style={{ fontWeight: 900 }}>{r.invite_code}</span>
+                          </div>
+                        ) : null}
+
+                        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
+                          <button type="button" onClick={() => rejectRequest(r)} style={dangerOutlineBtn}>
+                            Reject
+                          </button>
+                          <button type="button" onClick={() => approveRequest(r)} style={primaryBtn}>
+                            Approve
+                          </button>
+                        </div>
+
+                        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
+                          If the auth user does not exist yet, create the user in Supabase Auth (Users) and re-approve to activate.
+                        </div>
+                      </div>
+                    ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      </Section>
 
       {/* User Management */}
       <Section
@@ -607,6 +802,15 @@ function formatYmd(d: Date) {
 function formatDisplayDate(ymd: string) {
   const [y, m, d] = ymd.split('-')
   return `${m}/${d}/${y}`
+}
+
+function formatDisplayDateTime(iso: string) {
+  // ISO timestamptz -> MM/DD/YYYY
+  const d = new Date(iso)
+  const y = d.getFullYear()
+  const m = pad2(d.getMonth() + 1)
+  const day = pad2(d.getDate())
+  return `${m}/${day}/${y}`
 }
 
 function ensureBlockedPrefix(label: string) {
