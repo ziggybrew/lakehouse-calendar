@@ -156,11 +156,13 @@ export default function Admin() {
     }
 
     // 2) attempt to activate an existing profile (if the auth user already exists)
-    const { error: profErr, count } = await supabase
+    const { data: updatedProfiles, error: profErr } = await supabase
       .from('profiles')
       .update({ is_active: true })
       .eq('email', r.email)
-      .select('id', { count: 'exact', head: true })
+      .select('id')
+
+    const count = updatedProfiles?.length ?? 0
 
     if (profErr) {
       // Access request is still approved; profile activation can be retried later.
