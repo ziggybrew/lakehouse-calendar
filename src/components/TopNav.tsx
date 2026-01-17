@@ -1,6 +1,7 @@
 // src/components/TopNav.tsx
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
+import { supabase } from '../lib/supabaseClient'
 
 type UserInfo = {
   displayName: string
@@ -11,6 +12,17 @@ export default function TopNav() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+
+  async function handleLogout() {
+    setOpen(false)
+    const { error } = await supabase.auth.signOut()
+    if (error) {
+      // Keep this simple for now; replace with toast UI later.
+      alert(error.message)
+      return
+    }
+    navigate('/login')
+  }
 
   // Placeholder user info for now (auth wiring comes later)
   const user: UserInfo = useMemo(
@@ -90,9 +102,7 @@ export default function TopNav() {
               <button
                 type="button"
                 style={styles.secondaryBtn}
-                onClick={() => {
-                  navigate('/login')
-                }}
+                onClick={handleLogout}
               >
                 Logout
               </button>
