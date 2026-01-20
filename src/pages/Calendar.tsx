@@ -24,7 +24,7 @@ type Booking = {
 
 type DraftBooking = {
   start: string // YYYY-MM-DD
-  end: string // YYYY-MM-DD (end-exclusive)
+  end: string // YYYY-MM-DD (end-exclusive). Empty string means not set yet.
   userIds: string[] // selected profile ids
   notes: string
 }
@@ -57,6 +57,7 @@ export default function Calendar() {
   const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
   const [profilesLoading, setProfilesLoading] = useState(false)
   const [peoplePickerOpen, setPeoplePickerOpen] = useState(false)
+  const todayYmd = useMemo(() => formatYmd(new Date()), [])
 
   async function loadBookings() {
     setBookingsLoading(true)
@@ -158,11 +159,9 @@ export default function Calendar() {
     setSubmitError(null)
     const today = new Date()
     const start = formatYmd(today)
-    const endExclusive = formatYmd(addDays(startOfDay(today), 1))
-
     setDraft({
       start,
-      end: endExclusive,
+      end: '',
       userIds: currentUserId ? [currentUserId] : [],
       notes: '',
     })
@@ -214,7 +213,13 @@ export default function Calendar() {
     }
 
     if (!draft.start || !draft.end) {
-      setSubmitError('Please select a valid date range.')
+      setSubmitError('Please select a start and end date.')
+      return
+    }
+
+    const endInclusive = toInclusiveEnd(draft.end)
+    if (isYmdAfter(draft.start, endInclusive)) {
+      setSubmitError('End date must be the same as or after the start date.')
       return
     }
 
@@ -549,6 +554,7 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
               <input
                 type="date"
                 value={draft.start}
+                min={todayYmd}
                 onClick={(e) => {
                   const el = e.currentTarget as any
                   if (typeof el.showPicker === 'function') el.showPicker()
@@ -557,7 +563,24 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
                   const el = e.currentTarget as any
                   if (typeof el.showPicker === 'function') el.showPicker()
                 }}
-                onChange={(e) => setDraft({ ...draft, start: e.target.value })}
+                onChange={(e) => {
+                  const nextStartRaw = e.target.value
+                  const nextStart = isYmdAfter(todayYmd, nextStartRaw) ? todayYmd : nextStartRaw
+                  if (draft.end) {
+                    const currentEndInclusive = toInclusiveEnd(draft.end)
+
+                    // If start moves after current end (inclusive), bump end to match start
+                    if (isYmdAfter(nextStart, currentEndInclusive)) {
+                      setDraft({
+                        ...draft,
+                        start: nextStart,
+                        end: toExclusiveEnd(nextStart),
+                      })
+                      return
+                    }
+                  }
+                  setDraft({ ...draft, start: nextStart })
+                }}
                 style={{ ...inputStyle, cursor: 'pointer' }}
               />
             </div>
@@ -568,7 +591,8 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
               </div>
               <input
                 type="date"
-                value={toInclusiveEnd(draft.end)}
+                value={draft.end ? toInclusiveEnd(draft.end) : ''}
+                min={draft.start}
                 onClick={(e) => {
                   const el = e.currentTarget as any
                   if (typeof el.showPicker === 'function') el.showPicker()
@@ -577,10 +601,29 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
                   const el = e.currentTarget as any
                   if (typeof el.showPicker === 'function') el.showPicker()
                 }}
-                onChange={(e) =>
-                  setDraft({ ...draft, end: toExclusiveEnd(e.target.value) })
-                }
-                style={{ ...inputStyle, cursor: 'pointer' }}
+                onChange={(e) => {
+                  const nextEndInclusive = e.target.value
+
+                  if (!nextEndInclusive) {
+                    setDraft({ ...draft, end: '' })
+                    return
+                  }
+
+                  // Guard: do not allow inclusive end before start
+                  if (isYmdAfter(draft.start, nextEndInclusive)) {
+                    setDraft({ ...draft, end: toExclusiveEnd(draft.start) })
+                    return
+                  }
+
+                  setDraft({ ...draft, end: toExclusiveEnd(nextEndInclusive) })
+                }}
+                style={{
+                  ...inputStyle,
+                  cursor: 'pointer',
+                  // Hide native empty-state text like mm/dd/yyyy while keeping the calendar icon visible
+                  color: draft.end ? '#1f2933' : 'transparent',
+                  caretColor: draft.end ? '#1f2933' : 'transparent',
+                }}
               />
             </div>
 
@@ -782,6 +825,10 @@ function Modal(props: {
 function formatDisplayDate(ymd: string) {
   const [y, m, d] = ymd.split('-')
   return `${m}/${d}/${y}`
+}
+
+function isYmdAfter(a: string, b: string) {
+  return a > b
 }
 
 function getTwoLetterInitials(label: string) {
