@@ -1,5 +1,6 @@
 // src/pages/Calendar.tsx
 import { useEffect, useMemo, useState } from 'react'
+import { supabase } from '../lib/supabaseClient'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
@@ -20,34 +21,53 @@ type DraftBooking = {
   notes: string
 }
 
+type BookingRow = {
+  id: string
+  label: string
+  start_date: string // YYYY-MM-DD
+  end_date: string // YYYY-MM-DD (end-exclusive)
+  notes: string | null
+  is_blocked: boolean
+}
+
 export default function Calendar() {
-  // Hardcoded sample data for now (persistence comes later).
-  const bookings: Booking[] = useMemo(
-    () => [
-      {
-        id: '1',
-        title: 'Zack',
-        start: '2026-01-16',
-        end: '2026-01-19',
-        notes: 'Arriving Friday evening. Leaving Sunday afternoon.',
-      },
-      {
-        id: '2',
-        title: 'Family',
-        start: '2026-02-06',
-        end: '2026-02-09',
-        notes: 'Weekend hang.',
-      },
-      {
-        id: '3',
-        title: 'Cousins',
-        start: '2026-02-08',
-        end: '2026-02-12',
-        notes: 'Overlap is allowed for visibility.',
-      },
-    ],
-    []
-  )
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [bookingsLoading, setBookingsLoading] = useState(false)
+  const [bookingsError, setBookingsError] = useState<string | null>(null)
+
+  async function loadBookings() {
+    setBookingsLoading(true)
+    setBookingsError(null)
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id,label,start_date,end_date,notes,is_blocked')
+        .order('start_date', { ascending: true })
+
+      if (error) {
+        setBookings([])
+        setBookingsError('Unable to load bookings. Please try again.')
+        return
+      }
+
+      const rows = (data || []) as BookingRow[]
+      setBookings(
+        rows.map((r) => ({
+          id: r.id,
+          title: r.is_blocked ? `Blocked: ${r.label}` : r.label,
+          start: r.start_date,
+          end: r.end_date,
+          notes: r.notes || undefined,
+        }))
+      )
+    } finally {
+      setBookingsLoading(false)
+    }
+  }
+
+  useEffect(() => {
+    loadBookings()
+  }, [])
 
   const events = bookings
 
@@ -120,7 +140,19 @@ export default function Calendar() {
         <h1 style={{ margin: 0, fontSize: 28 }}>Calendar</h1>
 
         <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: 12 }}>
+          {bookingsError ? (
+            <span style={{ fontSize: 13, color: '#9a4f4f', fontWeight: 800 }}>
+              {bookingsError}
+            </span>
+          ) : bookingsLoading ? (
+            <span style={{ fontSize: 13, opacity: 0.8, fontWeight: 800 }}>Loading…</span>
+          ) : null}
+
           <button onClick={openBookingModal}>Book</button>
+
+          <button onClick={loadBookings} style={{ opacity: 0.9 }}>
+            Refresh
+          </button>
         </div>
       </div>
 
@@ -153,6 +185,11 @@ export default function Calendar() {
           .fc .fc-toolbar-title {
             color: #1f2933;
             font-weight: 800;
+          }
+
+          .fc .fc-button-group {
+            display: inline-flex;
+            gap: 10px;
           }
 
           .fc .fc-col-header-cell-cushion,
