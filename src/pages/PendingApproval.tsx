@@ -32,10 +32,11 @@ export default function PendingApproval() {
           boxSizing: 'border-box',
         }}
       >
-        <div style={{ fontSize: 18, fontWeight: 900, color: '#2f6f73' }}>Pending approval</div>
+        <div style={{ fontSize: 18, fontWeight: 900, color: '#2f6f73' }}>Session Timed Out!</div>
 
         <div style={{ marginTop: 10, fontSize: 14, lineHeight: 1.45, opacity: 0.9 }}>
-          Access is not active yet. An admin needs to approve this account before the calendar is available.
+          {/* Access is not active yet. An admin needs to approve this account before the calendar is available. */}
+            Your session has timed out. Please log in again to continue.
         </div>
 
         <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
