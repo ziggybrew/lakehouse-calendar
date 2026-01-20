@@ -2,16 +2,23 @@
 import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import type { Session } from '@supabase/supabase-js'
 
 type UserInfo = {
   displayName: string
-  modeLabel: string // e.g. "Guest" or "Member"
+  firstName?: string | null
+  lastName?: string | null
+  isDemo: boolean
+  avatarUrl?: string | null
 }
 
 export default function TopNav() {
   const [open, setOpen] = useState(false)
   const location = useLocation()
   const navigate = useNavigate()
+
+  const [session, setSession] = useState<Session | null>(null)
+  const [profile, setProfile] = useState<{ first_name?: string; last_name?: string; avatar_url?: string | null } | null>(null)
 
   async function handleLogout() {
     setOpen(false)
@@ -24,14 +31,59 @@ export default function TopNav() {
     navigate('/login')
   }
 
-  // Placeholder user info for now (auth wiring comes later)
-  const user: UserInfo = useMemo(
-    () => ({
-      displayName: 'Guest',
-      modeLabel: 'Demo Mode',
-    }),
-    []
-  )
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session ?? null)
+    })
+
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, newSession) => {
+      setSession(newSession)
+    })
+
+    return () => {
+      sub.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!session?.user) {
+      setProfile(null)
+      return
+    }
+
+    supabase
+      .from('profiles')
+      .select('first_name, last_name, avatar_url')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => {
+        setProfile(data ?? null)
+      })
+  }, [session])
+
+  const user: UserInfo = useMemo(() => {
+    if (!session?.user) {
+      return {
+        displayName: 'Guest',
+        firstName: null,
+        lastName: null,
+        isDemo: true,
+        avatarUrl: null,
+      }
+    }
+
+    const firstName = profile?.first_name ?? null
+    const lastName = profile?.last_name ?? null
+    const name = [firstName, lastName].filter(Boolean).join(' ').trim()
+
+    return {
+      displayName: name || 'Member',
+      firstName,
+      lastName,
+      isDemo: false,
+      avatarUrl: profile?.avatar_url ?? null,
+    }
+  }, [session, profile])
 
   // Close drawer on route change
   useEffect(() => {
@@ -46,6 +98,8 @@ export default function TopNav() {
     if (open) window.addEventListener('keydown', onKeyDown)
     return () => window.removeEventListener('keydown', onKeyDown)
   }, [open])
+
+  const initials = getInitialsFromFirstLast(user.firstName, user.lastName) || getInitials(user.displayName)
 
   return (
     <>
@@ -82,8 +136,25 @@ export default function TopNav() {
           >
             <div style={styles.drawerTop}>
               <div style={styles.userBlock}>
-                <div style={styles.userName}>{user.displayName}</div>
-                <div style={styles.userMeta}>{user.modeLabel}</div>
+                <div style={styles.userRow}>
+                  {user.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt=""
+                      style={styles.avatarImg}
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <div style={styles.avatarFallback} aria-hidden="true">
+                      {initials}
+                    </div>
+                  )}
+
+                  <div style={{ minWidth: 0 }}>
+                    <div style={styles.userName}>{user.displayName}</div>
+                    {user.isDemo ? <div style={styles.userMeta}>Demo Mode</div> : null}
+                  </div>
+                </div>
               </div>
 
               <button type="button" onClick={() => setOpen(false)} style={styles.iconBtn} aria-label="Close menu">
@@ -94,8 +165,8 @@ export default function TopNav() {
             </div>
 
             <nav style={styles.nav}>
-              <NavItem to="/calendar" label="Calendar" />
-              <NavItem to="/admin" label="Admin" />
+              <NavItem to="/calendar" label="Calendar" icon={<IconCalendar />} />
+              <NavItem to="/admin" label="Admin" icon={<IconShield />} />
             </nav>
 
             <div style={styles.drawerFooter}>
@@ -114,7 +185,7 @@ export default function TopNav() {
   )
 }
 
-function NavItem(props: { to: string; label: string }) {
+function NavItem(props: { to: string; label: string; icon: React.ReactNode }) {
   return (
     <NavLink
       to={props.to}
@@ -123,8 +194,65 @@ function NavItem(props: { to: string; label: string }) {
         ...(isActive ? styles.navItemActive : null),
       })}
     >
-      {props.label}
+      <span style={styles.navItemInner}>
+        <span style={styles.navIcon} aria-hidden="true">
+          {props.icon}
+        </span>
+        <span style={styles.navLabel}>{props.label}</span>
+      </span>
     </NavLink>
+  )
+}
+
+function getInitialsFromFirstLast(firstName?: string | null, lastName?: string | null) {
+  const first = String(firstName || '').trim()
+  const last = String(lastName || '').trim()
+
+  const a = first ? first[0] : ''
+  const b = last ? last[0] : ''
+
+  const out = (a + b).toUpperCase().slice(0, 2)
+  return out || ''
+}
+
+function getInitials(name: string) {
+  const parts = String(name || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (parts.length === 0) return '?'
+  const first = parts[0][0] || '?'
+  const last = (parts.length > 1 ? parts[parts.length - 1][0] : '') || ''
+  return (first + last).toUpperCase().slice(0, 2)
+}
+
+function IconCalendar() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M7 3v2M17 3v2M4 8h16M6 6h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
+}
+
+function IconShield() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M12 3l7 4v6c0 5-3 8-7 9-4-1-7-4-7-9V7l7-4Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+      <path d="M12 7v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path d="M12 17h.01" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+    </svg>
   )
 }
 
@@ -205,6 +333,32 @@ const styles: Record<string, React.CSSProperties> = {
   userBlock: {
     minWidth: 0,
   },
+  userRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 12,
+  },
+  avatarFallback: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    background: '#ffffff',
+    border: '1px solid #d6e6e3',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#2f6f73',
+    fontWeight: 900,
+    letterSpacing: 0.4,
+  },
+  avatarImg: {
+    width: 38,
+    height: 38,
+    borderRadius: 12,
+    objectFit: 'cover',
+    border: '1px solid #d6e6e3',
+    background: '#ffffff',
+  },
   userName: {
     fontSize: 14,
     fontWeight: 800,
@@ -228,11 +382,27 @@ const styles: Record<string, React.CSSProperties> = {
     textDecoration: 'none',
     fontWeight: 750,
     background: '#ffffff',
+    display: 'block',
   },
   navItemActive: {
     background: '#2f6f73',
     color: '#ffffff',
     border: '1px solid #2f6f73',
+  },
+  navItemInner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 10,
+  },
+  navIcon: {
+    width: 22,
+    height: 22,
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  navLabel: {
+    minWidth: 0,
   },
   drawerFooter: {
     marginTop: 'auto',
