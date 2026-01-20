@@ -25,7 +25,7 @@ type Booking = {
 type DraftBooking = {
   start: string // YYYY-MM-DD
   end: string // YYYY-MM-DD (end-exclusive)
-  title: string
+  userIds: string[] // selected profile ids
   notes: string
 }
 
@@ -38,12 +38,25 @@ type BookingRow = {
   is_blocked: boolean
 }
 
+type ProfileOption = {
+  id: string
+  email: string
+  first_name: string | null
+  last_name: string | null
+  is_active: boolean
+}
+
 export default function Calendar() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
   const [submitLoading, setSubmitLoading] = useState(false)
   const [submitError, setSubmitError] = useState<string | null>(null)
+
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null)
+  const [profileOptions, setProfileOptions] = useState<ProfileOption[]>([])
+  const [profilesLoading, setProfilesLoading] = useState(false)
+  const [peoplePickerOpen, setPeoplePickerOpen] = useState(false)
 
   async function loadBookings() {
     setBookingsLoading(true)
@@ -99,8 +112,33 @@ export default function Calendar() {
     }
   }
 
+  async function loadProfiles() {
+    setProfilesLoading(true)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id,email,first_name,last_name,is_active')
+        .eq('is_active', true)
+        .order('first_name', { ascending: true })
+
+      if (error) {
+        setProfileOptions([])
+        return
+      }
+
+      setProfileOptions((data || []) as ProfileOption[])
+    } finally {
+      setProfilesLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadBookings()
+    loadProfiles()
+
+    supabase.auth.getUser().then(({ data }) => {
+      setCurrentUserId(data.user?.id ?? null)
+    })
   }, [])
 
   const events = bookings
@@ -125,13 +163,15 @@ export default function Calendar() {
     setDraft({
       start,
       end: endExclusive,
-      title: '',
+      userIds: currentUserId ? [currentUserId] : [],
       notes: '',
     })
+    setPeoplePickerOpen(false)
   }
 
   function closeBookingModal() {
     setSubmitError(null)
+    setPeoplePickerOpen(false)
     setDraft(null)
   }
 
@@ -162,9 +202,14 @@ export default function Calendar() {
   async function onSubmitBooking() {
     if (!draft) return
 
-    const label = (draft.title || '').trim()
+    if (!draft.userIds || draft.userIds.length === 0) {
+      setSubmitError('Please select at least one person.')
+      return
+    }
+
+    const label = labelFromSelectedUsers(draft.userIds, profileOptions).trim()
     if (!label) {
-      setSubmitError('Please enter a name.')
+      setSubmitError('Please select at least one person.')
       return
     }
 
@@ -202,6 +247,51 @@ export default function Calendar() {
     } finally {
       setSubmitLoading(false)
     }
+  }
+function profileDisplayName(p: { first_name: string | null; last_name: string | null }) {
+  const name = [p.first_name, p.last_name].filter(Boolean).join(' ').trim()
+  return name || 'Unknown'
+}
+
+function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[]) {
+  const byId = new Map(options.map((p) => [p.id, p]))
+  const names = selectedIds
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((p) => profileDisplayName(p as ProfileOption))
+
+  // Dedupe while preserving order
+  const seen = new Set<string>()
+  const unique = names.filter((n) => (seen.has(n) ? false : (seen.add(n), true)))
+  return unique.join(', ')
+}
+
+  function toggleSelectedUserId(id: string) {
+    if (!draft) return
+
+    const has = draft.userIds.includes(id)
+    const next = has ? draft.userIds.filter((x) => x !== id) : [...draft.userIds, id]
+    setDraft({ ...draft, userIds: next })
+  }
+
+  const selectedPeopleLabel = useMemo(() => {
+    if (!draft) return ''
+
+    const label = labelFromSelectedUsers(draft.userIds, profileOptions)
+    return label || 'Select people'
+  }, [draft, profileOptions])
+
+  const inputStyle: React.CSSProperties = {
+    width: '100%',
+    padding: '12px 12px',
+    borderRadius: 12,
+    border: '1px solid rgba(47, 111, 115, 0.25)',
+    background: 'rgba(255,255,255,0.95)',
+    color: '#1f2933',
+    fontFamily: 'inherit',
+    fontSize: 14,
+    lineHeight: 1.2,
+    boxSizing: 'border-box',
   }
 
   const dayBookings = useMemo(() => {
@@ -459,7 +549,16 @@ export default function Calendar() {
               <input
                 type="date"
                 value={draft.start}
+                onClick={(e) => {
+                  const el = e.currentTarget as any
+                  if (typeof el.showPicker === 'function') el.showPicker()
+                }}
+                onFocus={(e) => {
+                  const el = e.currentTarget as any
+                  if (typeof el.showPicker === 'function') el.showPicker()
+                }}
                 onChange={(e) => setDraft({ ...draft, start: e.target.value })}
+                style={{ ...inputStyle, cursor: 'pointer' }}
               />
             </div>
 
@@ -470,20 +569,116 @@ export default function Calendar() {
               <input
                 type="date"
                 value={toInclusiveEnd(draft.end)}
+                onClick={(e) => {
+                  const el = e.currentTarget as any
+                  if (typeof el.showPicker === 'function') el.showPicker()
+                }}
+                onFocus={(e) => {
+                  const el = e.currentTarget as any
+                  if (typeof el.showPicker === 'function') el.showPicker()
+                }}
                 onChange={(e) =>
                   setDraft({ ...draft, end: toExclusiveEnd(e.target.value) })
                 }
+                style={{ ...inputStyle, cursor: 'pointer' }}
               />
             </div>
 
             <div>
-              <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>Name(s)</div>
-              <input
-                type="text"
-                value={draft.title}
-                onChange={(e) => setDraft({ ...draft, title: e.target.value })}
-                style={{ width: '100%' }}
-              />
+              <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>Guest(s)</div>
+
+              <div style={{ position: 'relative' }}>
+                <button
+                  type="button"
+                  onClick={() => setPeoplePickerOpen((v) => !v)}
+                  style={{
+                    width: '100%',
+                    textAlign: 'left',
+                    padding: '12px 12px',
+                    borderRadius: 12,
+                    border: '1px solid rgba(47, 111, 115, 0.25)',
+                    background: 'rgba(255,255,255,0.95)',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 12,
+                  }}
+                >
+                  <span style={{ fontSize: 14, fontWeight: 800, color: '#1f2933', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    {selectedPeopleLabel}
+                  </span>
+                  <span aria-hidden="true" style={{ opacity: 0.75, fontWeight: 900 }}>
+                    {peoplePickerOpen ? '▴' : '▾'}
+                  </span>
+                </button>
+
+                {peoplePickerOpen ? (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      left: 0,
+                      right: 0,
+                      marginTop: 8,
+                      borderRadius: 12,
+                      border: '1px solid rgba(47, 111, 115, 0.25)',
+                      background: 'rgba(255,255,255,0.98)',
+                      boxShadow: '0 10px 25px rgba(0,0,0,0.12)',
+                      padding: 10,
+                      zIndex: 5,
+                      maxHeight: 220,
+                      overflowY: 'auto',
+                    }}
+                  >
+                    {profilesLoading ? (
+                      <div style={{ fontSize: 13, opacity: 0.75, padding: 8 }}>Loading…</div>
+                    ) : profileOptions.length === 0 ? (
+                      <div style={{ fontSize: 13, opacity: 0.75, padding: 8 }}>No users available</div>
+                    ) : (
+                      <div style={{ display: 'grid', gap: 6 }}>
+                        {profileOptions.map((p) => {
+                          const checked = draft.userIds.includes(p.id)
+                          const name = profileDisplayName(p)
+
+                          return (
+                            <label
+                              key={p.id}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: 10,
+                                padding: '10px 10px',
+                                borderRadius: 10,
+                                cursor: 'pointer',
+                                border: checked ? '1px solid rgba(47, 111, 115, 0.35)' : '1px solid transparent',
+                                background: checked ? 'rgba(95, 167, 163, 0.10)' : 'transparent',
+                              }}
+                            >
+                              <input
+                                type="checkbox"
+                                checked={checked}
+                                onChange={() => toggleSelectedUserId(p.id)}
+                                style={{ width: 16, height: 16 }}
+                              />
+                              <span style={{ fontSize: 14, fontWeight: 900, color: '#1f2933' }}>{name}</span>
+                            </label>
+                          )
+                        })}
+                      </div>
+                    )}
+
+                    <div style={{ marginTop: 10, display: 'flex', justifyContent: 'flex-end' }}>
+                      <button type="button" onClick={() => setPeoplePickerOpen(false)} style={{ padding: '10px 12px' }}>
+                        Done
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div style={{ marginTop: 8, fontSize: 12, opacity: 0.75 }}>
+                Tap to select one or more people.
+              </div>
             </div>
 
             <div>
@@ -494,7 +689,7 @@ export default function Calendar() {
                 rows={3}
                 value={draft.notes}
                 onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-                style={{ width: '100%', resize: 'vertical' }}
+                style={{ ...inputStyle, resize: 'vertical', cursor: 'text' }}
               />
             </div>
           </div>
@@ -522,7 +717,7 @@ export default function Calendar() {
             </button>
             <button
               onClick={onSubmitBooking}
-              disabled={submitLoading || !draft.start || !draft.end || !draft.title.trim()}
+              disabled={submitLoading || !draft.start || !draft.end || draft.userIds.length === 0}
             >
               {submitLoading ? 'Saving…' : 'Submit'}
             </button>
