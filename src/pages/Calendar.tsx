@@ -42,6 +42,8 @@ export default function Calendar() {
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
+  const [submitLoading, setSubmitLoading] = useState(false)
+  const [submitError, setSubmitError] = useState<string | null>(null)
 
   async function loadBookings() {
     setBookingsLoading(true)
@@ -115,6 +117,7 @@ export default function Calendar() {
   }, [draft, activeDay])
 
   function openBookingModal() {
+    setSubmitError(null)
     const today = new Date()
     const start = formatYmd(today)
     const endExclusive = formatYmd(addDays(startOfDay(today), 1))
@@ -128,6 +131,7 @@ export default function Calendar() {
   }
 
   function closeBookingModal() {
+    setSubmitError(null)
     setDraft(null)
   }
 
@@ -155,18 +159,49 @@ export default function Calendar() {
     setActiveDay(startStr ? startStr.slice(0, 10) : null)
   }
 
-  function onCreateEntryStub() {
-    alert(
-      [
-        'Create entry (stub)',
-        '',
-        `Label: ${draft?.title || '(none)'}`,
-        `Start: ${draft?.start}`,
-        `End (exclusive): ${draft?.end}`,
-        `Notes: ${draft?.notes || '(none)'}`,
-      ].join('\n')
-    )
-    closeBookingModal()
+  async function onSubmitBooking() {
+    if (!draft) return
+
+    const label = (draft.title || '').trim()
+    if (!label) {
+      setSubmitError('Please enter a name.')
+      return
+    }
+
+    if (!draft.start || !draft.end) {
+      setSubmitError('Please select a valid date range.')
+      return
+    }
+
+    setSubmitLoading(true)
+    setSubmitError(null)
+
+    try {
+      const { data: userRes, error: userErr } = await supabase.auth.getUser()
+      if (userErr || !userRes?.user?.id) {
+        setSubmitError('Sign-in is required to book dates. Please sign in again.')
+        return
+      }
+
+      const { error } = await supabase.from('bookings').insert({
+        label,
+        start_date: draft.start,
+        end_date: draft.end, // already end-exclusive
+        notes: (draft.notes || '').trim() ? (draft.notes || '').trim() : null,
+        is_blocked: false,
+        created_by: userRes.user.id,
+      })
+
+      if (error) {
+        setSubmitError('Unable to save this entry. Please try again.')
+        return
+      }
+
+      closeBookingModal()
+      await loadBookings()
+    } finally {
+      setSubmitLoading(false)
+    }
   }
 
   const dayBookings = useMemo(() => {
@@ -462,17 +497,34 @@ export default function Calendar() {
                 style={{ width: '100%', resize: 'vertical' }}
               />
             </div>
-
-            {/* <div style={{ fontSize: 16, opacity: 0.7 }}>
-              Next steps include: persisting entries, adding authentication, and
-              improving the display of overlapping entries.
-            </div> */}
           </div>
 
+          {submitError ? (
+            <div
+              style={{
+                marginTop: 12,
+                padding: 10,
+                borderRadius: 12,
+                border: '1px solid rgba(154, 79, 79, 0.35)',
+                background: 'rgba(154, 79, 79, 0.08)',
+                color: '#9a4f4f',
+                fontSize: 13,
+                fontWeight: 900,
+              }}
+            >
+              {submitError}
+            </div>
+          ) : null}
+
           <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: 16, gap: 8 }}>
-            <button onClick={closeBookingModal}>Cancel</button>
-            <button onClick={onCreateEntryStub} disabled={!draft.start || !draft.end}>
-              Submit
+            <button onClick={closeBookingModal} disabled={submitLoading}>
+              Cancel
+            </button>
+            <button
+              onClick={onSubmitBooking}
+              disabled={submitLoading || !draft.start || !draft.end || !draft.title.trim()}
+            >
+              {submitLoading ? 'Saving…' : 'Submit'}
             </button>
           </div>
         </Modal>
