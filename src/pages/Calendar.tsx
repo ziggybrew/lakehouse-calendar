@@ -898,10 +898,6 @@ function ymdToDate(ymd: string) {
   return new Date(y, m - 1, d)
 }
 
-function startOfDay(date: Date) {
-  return new Date(date.getFullYear(), date.getMonth(), date.getDate())
-}
-
 function addDays(date: Date, days: number) {
   const d = new Date(date)
   d.setDate(d.getDate() + days)
