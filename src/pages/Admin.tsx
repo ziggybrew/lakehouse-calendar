@@ -1,10 +1,11 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
 
 type AdminUser = {
   id: string
-  name: string
   email: string
+  firstName?: string
+  lastName?: string
   role: 'admin' | 'member'
   isActive: boolean
 }
@@ -39,67 +40,13 @@ type BookingDraft = {
 }
 
 export default function Admin() {
-  // Temporary sample data (persistence + auth comes later).
-  const initialUsers = useMemo<AdminUser[]>(
-    () => [
-      {
-        id: 'u1',
-        name: 'Zack',
-        email: 'zack@example.com',
-        role: 'admin',
-        isActive: true,
-      },
-      {
-        id: 'u2',
-        name: 'Jeff',
-        email: 'jeff@example.com',
-        role: 'member',
-        isActive: true,
-      },
-      {
-        id: 'u3',
-        name: 'Rob',
-        email: 'rob@example.com',
-        role: 'member',
-        isActive: false,
-      },
-    ],
-    []
-  )
+  const [users, setUsers] = useState<AdminUser[]>([])
+  const [usersLoading, setUsersLoading] = useState(false)
+  const [usersError, setUsersError] = useState<string | null>(null)
 
-  const initialBookings = useMemo<Booking[]>(
-    () => [
-      {
-        id: 'b1',
-        label: 'Zack',
-        start: '2026-01-16',
-        end: '2026-01-19',
-        notes: 'Arriving Friday evening. Leaving Sunday afternoon.',
-        createdBy: 'Zack',
-      },
-      {
-        id: 'b2',
-        label: 'Family',
-        start: '2026-02-06',
-        end: '2026-02-09',
-        notes: 'Weekend hang.',
-        createdBy: 'Mom',
-      },
-      {
-        id: 'b3',
-        label: 'Blocked: Maintenance',
-        start: '2026-02-20',
-        end: '2026-02-23',
-        notes: 'Plumbing work scheduled.',
-        createdBy: 'Admin',
-        isBlocked: true,
-      },
-    ],
-    []
-  )
-
-  const [users, setUsers] = useState<AdminUser[]>(initialUsers)
-  const [bookings, setBookings] = useState<Booking[]>(initialBookings)
+  const [bookings, setBookings] = useState<Booking[]>([])
+  const [bookingsLoading, setBookingsLoading] = useState(false)
+  const [bookingsError, setBookingsError] = useState<string | null>(null)
 
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([])
   const [accessLoading, setAccessLoading] = useState(false)
@@ -125,7 +72,7 @@ export default function Admin() {
         .order('created_at', { ascending: false })
 
       if (error) {
-        setAccessError(error.message)
+        setAccessError('Unable to load access requests. Please try again.')
         setAccessRequests([])
         return
       }
@@ -136,8 +83,73 @@ export default function Admin() {
     }
   }
 
+  async function loadUsers() {
+    setUsersLoading(true)
+    setUsersError(null)
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('id,email,first_name,last_name,role,is_active')
+        .order('email', { ascending: true })
+
+      if (error) {
+        setUsersError('Unable to load users. Please try again.')
+        setUsers([])
+        return
+      }
+
+      const rows = (data || []) as any[]
+      setUsers(
+        rows.map((r) => ({
+          id: r.id,
+          email: r.email,
+          firstName: r.first_name || undefined,
+          lastName: r.last_name || undefined,
+          role: (r.role === 'admin' ? 'admin' : 'member') as 'admin' | 'member',
+          isActive: !!r.is_active,
+        }))
+      )
+    } finally {
+      setUsersLoading(false)
+    }
+  }
+
+  async function loadBookings() {
+    setBookingsLoading(true)
+    setBookingsError(null)
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('id,label,start_date,end_date,notes,is_blocked,created_by')
+        .order('start_date', { ascending: false })
+
+      if (error) {
+        setBookingsError('Unable to load entries. Please try again.')
+        setBookings([])
+        return
+      }
+
+      const rows = (data || []) as any[]
+      setBookings(
+        rows.map((r) => ({
+          id: r.id,
+          label: r.label,
+          start: r.start_date,
+          end: r.end_date,
+          notes: r.notes || undefined,
+          createdBy: r.created_by || undefined,
+          isBlocked: !!r.is_blocked,
+        }))
+      )
+    } finally {
+      setBookingsLoading(false)
+    }
+  }
+
   useEffect(() => {
     loadAccessRequests()
+    loadUsers()
+    loadBookings()
   }, [])
 
   async function approveRequest(r: AccessRequest) {
@@ -195,10 +207,21 @@ export default function Admin() {
     await loadAccessRequests()
   }
 
-  function toggleUserActive(userId: string) {
-    setUsers((prev) =>
-      prev.map((u) => (u.id === userId ? { ...u, isActive: !u.isActive } : u))
-    )
+  async function toggleUserActive(userId: string, nextActive: boolean) {
+    const ok = window.confirm(nextActive ? 'Activate this user?' : 'Deactivate this user?')
+    if (!ok) return
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ is_active: nextActive })
+      .eq('id', userId)
+
+    if (error) {
+      alert('Unable to update user status. Please try again.')
+      return
+    }
+
+    await loadUsers()
   }
 
   function openCreateBooking() {
@@ -230,31 +253,62 @@ export default function Admin() {
     setDraftOpen(false)
   }
 
-  function saveDraft() {
+  async function saveDraft() {
     if (!draft.label.trim()) return
 
-    const newBooking: Booking = {
-      id: editingId || `b_${Date.now()}`,
-      label: draft.isBlocked ? ensureBlockedPrefix(draft.label.trim()) : draft.label.trim(),
-      start: draft.start,
-      end: toExclusiveEnd(draft.endInclusive),
-      notes: draft.notes.trim() ? draft.notes.trim() : undefined,
-      createdBy: 'Admin',
-      isBlocked: draft.isBlocked,
+    const label = draft.isBlocked ? ensureBlockedPrefix(draft.label.trim()) : draft.label.trim()
+    const payload: any = {
+      label,
+      start_date: draft.start,
+      end_date: toExclusiveEnd(draft.endInclusive),
+      notes: draft.notes.trim() ? draft.notes.trim() : null,
+      is_blocked: draft.isBlocked,
     }
 
-    setBookings((prev) => {
-      if (!editingId) return [newBooking, ...prev]
-      return prev.map((b) => (b.id === editingId ? newBooking : b))
-    })
+    if (!editingId) {
+      const { data: u } = await supabase.auth.getUser()
+      const uid = u?.user?.id
+      if (!uid) {
+        alert('Unable to create entry. Please sign in again.')
+        return
+      }
+
+      const { error } = await supabase
+        .from('bookings')
+        .insert({ ...payload, created_by: uid })
+
+      if (error) {
+        alert('Unable to create entry. Please try again.')
+        return
+      }
+    } else {
+      const { error } = await supabase
+        .from('bookings')
+        .update(payload)
+        .eq('id', editingId)
+
+      if (error) {
+        alert('Unable to update entry. Please try again.')
+        return
+      }
+    }
 
     setDraftOpen(false)
+    await loadBookings()
   }
 
-  function deleteBooking(id: string) {
+  async function deleteBooking(id: string) {
     const ok = window.confirm('Remove this entry?')
     if (!ok) return
-    setBookings((prev) => prev.filter((b) => b.id !== id))
+
+    const { error } = await supabase.from('bookings').delete().eq('id', id)
+
+    if (error) {
+      alert('Unable to remove entry. Please try again.')
+      return
+    }
+
+    await loadBookings()
   }
 
   return (
@@ -278,7 +332,7 @@ export default function Admin() {
         title="Access requests"
         description="Review new registration requests. Approving activates an existing profile if the auth user already exists."
         rightAction={
-          <button type="button" onClick={loadAccessRequests} style={secondaryBtn}>
+          <button type="button" onClick={() => { loadAccessRequests(); loadUsers(); }} style={secondaryBtn}>
             Refresh
           </button>
         }
@@ -380,56 +434,88 @@ export default function Admin() {
         description="View users, roles, and active status. Deactivating a user removes access."
       >
         <div style={cardStyle}>
-          <div style={gridStyle}>
-            {users.map((u) => (
-              <div key={u.id} style={itemCardStyle}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ fontWeight: 900, color: '#1f2933' }}>{u.name}</div>
-                    <div style={{ fontSize: 12, opacity: 0.8, wordBreak: 'break-word' }}>
-                      {u.email}
-                    </div>
-                  </div>
+          {usersError ? (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                border: '1px solid rgba(154, 79, 79, 0.35)',
+                background: 'rgba(154, 79, 79, 0.08)',
+                color: '#9a4f4f',
+                fontSize: 13,
+                fontWeight: 900,
+              }}
+            >
+              {usersError}
+            </div>
+          ) : null}
 
-                  <div
-                    style={{
-                      display: 'flex',
-                      gap: 8,
-                      flexWrap: 'wrap',
-                      justifyContent: 'flex-end',
-                    }}
-                  >
-                    <span style={chip(u.role === 'admin' ? '#2f6f73' : '#5fa7a3')}>
-                      {u.role}
-                    </span>
-                    <span style={chip(u.isActive ? '#2f6f73' : '#9aa7a5')}>
-                      {u.isActive ? 'Active' : 'Inactive'}
-                    </span>
-                  </div>
-                </div>
-
-                <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                  <button
-                    type="button"
-                    onClick={() => toggleUserActive(u.id)}
-                    style={u.isActive ? dangerOutlineBtn : primaryOutlineBtn}
-                  >
-                    {u.isActive ? 'Deactivate' : 'Activate'}
-                  </button>
+          <div style={{ marginTop: usersError ? 12 : 0 }}>
+            {usersLoading ? (
+              <div style={{ opacity: 0.75, fontSize: 13 }}>Loading users…</div>
+            ) : users.length === 0 ? (
+              <div style={itemCardStyle}>
+                <div style={{ fontWeight: 900, color: '#1f2933' }}>No users found</div>
+                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                  Users will appear here after accounts are created.
                 </div>
               </div>
-            ))}
+            ) : (
+              <div style={gridStyle}>
+                {users.map((u) => {
+                  const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email
+                  return (
+                    <div key={u.id} style={itemCardStyle}>
+                      <div
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          justifyContent: 'space-between',
+                          gap: 12,
+                        }}
+                      >
+                        <div style={{ minWidth: 0 }}>
+                          <div style={{ fontWeight: 900, color: '#1f2933' }}>{name}</div>
+                          <div style={{ fontSize: 12, opacity: 0.8, wordBreak: 'break-word' }}>
+                            {u.email}
+                          </div>
+                        </div>
+
+                        <div
+                          style={{
+                            display: 'flex',
+                            gap: 8,
+                            flexWrap: 'wrap',
+                            justifyContent: 'flex-end',
+                          }}
+                        >
+                          <span style={chip(u.role === 'admin' ? '#2f6f73' : '#5fa7a3')}>
+                            {u.role}
+                          </span>
+                          <span style={chip(u.isActive ? '#2f6f73' : '#9aa7a5')}>
+                            {u.isActive ? 'Active' : 'Inactive'}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
+                        <button
+                          type="button"
+                          onClick={() => toggleUserActive(u.id, !u.isActive)}
+                          style={u.isActive ? dangerOutlineBtn : primaryOutlineBtn}
+                        >
+                          {u.isActive ? 'Deactivate' : 'Activate'}
+                        </button>
+                      </div>
+                    </div>
+                  )
+                })}
+              </div>
+            )}
           </div>
 
           <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-            Next steps include: real user list from the auth provider, invitations, and role assignment.
+            Note: user creation/invites are handled separately. Approval controls activation.
           </div>
         </div>
       </Section>
@@ -445,58 +531,86 @@ export default function Admin() {
         }
       >
         <div style={cardStyle}>
-          <div style={gridStyle}>
-            {bookings.map((b) => (
-              <div key={b.id} style={itemCardStyle}>
-                <div
-                  style={{
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    justifyContent: 'space-between',
-                    gap: 12,
-                  }}
-                >
-                  <div style={{ minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                      <div style={{ fontWeight: 900, color: '#1f2933' }}>{b.label}</div>
-                      {b.isBlocked ? <span style={chip('#9a6b4f')}>blocked</span> : null}
+          {bookingsError ? (
+            <div
+              style={{
+                padding: 12,
+                borderRadius: 14,
+                border: '1px solid rgba(154, 79, 79, 0.35)',
+                background: 'rgba(154, 79, 79, 0.08)',
+                color: '#9a4f4f',
+                fontSize: 13,
+                fontWeight: 900,
+              }}
+            >
+              {bookingsError}
+            </div>
+          ) : null}
+
+          <div style={{ marginTop: bookingsError ? 12 : 0 }}>
+            {bookingsLoading ? (
+              <div style={{ opacity: 0.75, fontSize: 13 }}>Loading entries…</div>
+            ) : (
+              <div style={gridStyle}>
+                {bookings.map((b) => (
+                  <div key={b.id} style={itemCardStyle}>
+                    <div
+                      style={{
+                        display: 'flex',
+                        alignItems: 'flex-start',
+                        justifyContent: 'space-between',
+                        gap: 12,
+                      }}
+                    >
+                      <div style={{ minWidth: 0 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
+                          <div style={{ fontWeight: 900, color: '#1f2933' }}>{b.label}</div>
+                          {b.isBlocked ? <span style={chip('#9a6b4f')}>blocked</span> : null}
+                        </div>
+
+                        <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>
+                          {formatDisplayDate(b.start)} → {formatDisplayDate(toInclusiveEnd(b.end))}
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                        <button type="button" onClick={() => openEditBooking(b)} style={primaryOutlineBtn}>
+                          Edit
+                        </button>
+                        <button type="button" onClick={() => deleteBooking(b.id)} style={dangerOutlineBtn}>
+                          Remove
+                        </button>
+                      </div>
                     </div>
 
-                    <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>
-                      {formatDisplayDate(b.start)} → {formatDisplayDate(toInclusiveEnd(b.end))}
+                    <div style={{ marginTop: 10, fontSize: 13 }}>
+                      {b.notes ? (
+                        <div style={{ opacity: 0.9 }}>{b.notes}</div>
+                      ) : (
+                        <div style={{ opacity: 0.55 }}>No notes.</div>
+                      )}
+                    </div>
+
+                    <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
+                      Created by: {b.createdBy || '—'}
                     </div>
                   </div>
+                ))}
 
-                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                    <button type="button" onClick={() => openEditBooking(b)} style={primaryOutlineBtn}>
-                      Edit
-                    </button>
-                    <button type="button" onClick={() => deleteBooking(b.id)} style={dangerOutlineBtn}>
-                      Remove
-                    </button>
+                {!bookingsLoading && bookings.length === 0 ? (
+                  <div style={itemCardStyle}>
+                    <div style={{ fontWeight: 900, color: '#1f2933' }}>No entries yet</div>
+                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
+                      Create an entry to populate the calendar.
+                    </div>
                   </div>
-                </div>
-
-                <div style={{ marginTop: 10, fontSize: 13 }}>
-                  {b.notes ? <div style={{ opacity: 0.9 }}>{b.notes}</div> : <div style={{ opacity: 0.55 }}>No notes.</div>}
-                </div>
-
-                <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
-                  Created by: {b.createdBy || '—'}
-                </div>
+                ) : null}
               </div>
-            ))}
-
-            {bookings.length === 0 ? (
-              <div style={itemCardStyle}>
-                <div style={{ opacity: 0.75 }}>No entries yet.</div>
-              </div>
-            ) : null}
+            )}
           </div>
 
           <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-            Next steps include: admin-only create/edit against the same source of truth as the calendar page and a
-            dedicated “blocked dates” entry type.
+            Note: this page uses the same bookings table as the calendar.
           </div>
         </div>
       </Section>
