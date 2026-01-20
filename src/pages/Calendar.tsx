@@ -5,6 +5,7 @@ import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { DateClickArg } from '@fullcalendar/interaction'
+import type { EventClickArg } from '@fullcalendar/core'
 
 type Booking = {
   id: string
@@ -12,6 +13,13 @@ type Booking = {
   start: string // YYYY-MM-DD
   end: string // YYYY-MM-DD (end-exclusive)
   notes?: string
+  extendedProps?: {
+    label: string
+    initials: string
+    isBlocked: boolean
+    color: string
+    bookingId: string
+  }
 }
 
 type DraftBooking = {
@@ -51,15 +59,39 @@ export default function Calendar() {
       }
 
       const rows = (data || []) as BookingRow[]
-      setBookings(
-        rows.map((r) => ({
-          id: r.id,
-          title: r.is_blocked ? `Blocked: ${r.label}` : r.label,
-          start: r.start_date,
-          end: r.end_date,
-          notes: r.notes || undefined,
-        }))
-      )
+
+      const expanded: Booking[] = []
+      for (const r of rows) {
+        const label = r.label
+        const initials = getTwoLetterInitials(label)
+        const baseColor = r.is_blocked ? '#9a4f4f' : colorForLabel(label)
+
+        // Expand into one event per day so avatars show on every day in month view.
+        // end_date is stored end-exclusive.
+        let cur = r.start_date
+        while (cur < r.end_date) {
+          const next = formatYmd(addDays(ymdToDate(cur), 1))
+
+          expanded.push({
+            id: `${r.id}-${cur}`,
+            title: r.is_blocked ? `Blocked: ${label}` : label,
+            start: cur,
+            end: next,
+            notes: r.notes || undefined,
+            extendedProps: {
+              label,
+              initials,
+              isBlocked: r.is_blocked,
+              color: baseColor,
+              bookingId: r.id,
+            },
+          })
+
+          cur = next
+        }
+      }
+
+      setBookings(expanded)
     } finally {
       setBookingsLoading(false)
     }
@@ -107,6 +139,22 @@ export default function Calendar() {
     setActiveDay(arg.dateStr)
   }
 
+  function onEventClick(arg: EventClickArg) {
+    // In month view, events render as segments inside each day cell.
+    // Use the closest day element to determine which date was clicked.
+    const dayEl = (arg.el as HTMLElement).closest('.fc-daygrid-day') as HTMLElement | null
+    const date = dayEl?.getAttribute('data-date')
+
+    if (date) {
+      setActiveDay(date)
+      return
+    }
+
+    // Fallback: use the event start date
+    const startStr = arg.event.startStr
+    setActiveDay(startStr ? startStr.slice(0, 10) : null)
+  }
+
   function onCreateEntryStub() {
     alert(
       [
@@ -150,8 +198,34 @@ export default function Calendar() {
 
           <button onClick={openBookingModal}>Book</button>
 
-          <button onClick={loadBookings} style={{ opacity: 0.9 }}>
-            Refresh
+          <button
+            type="button"
+            onClick={loadBookings}
+            aria-label="Refresh bookings"
+            title="Refresh"
+            style={{
+              width: 40,
+              height: 40,
+              borderRadius: 12,
+              border: '1px solid rgba(47, 111, 115, 0.25)',
+              background: 'rgba(255,255,255,0.85)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer',
+              color: '#2f6f73',
+            }}
+          >
+            <span
+              aria-hidden="true"
+              style={{
+                fontSize: 18,
+                lineHeight: 1,
+                fontWeight: 900,
+              }}
+            >
+              ↻
+            </span>
           </button>
         </div>
       </div>
@@ -185,6 +259,7 @@ export default function Calendar() {
           .fc .fc-toolbar-title {
             color: #1f2933;
             font-weight: 800;
+            font-size: 18px;
           }
 
           .fc .fc-button-group {
@@ -195,6 +270,37 @@ export default function Calendar() {
           .fc .fc-col-header-cell-cushion,
           .fc .fc-daygrid-day-number {
             color: #1f2933;
+          }
+
+          /* Render events as avatars (no bars) */
+          .fc .fc-daygrid-event {
+            background: transparent !important;
+            border: 0 !important;
+            padding: 0 !important;
+            margin: 2px 0 !important;
+            box-shadow: none !important;
+          }
+
+          .fc .fc-daygrid-event .fc-event-main {
+            padding: 0 !important;
+          }
+
+          .fc .fc-daygrid-event-harness {
+            margin-top: 2px;
+          }
+
+          /* Center avatar events inside the day cell */
+          .fc .fc-daygrid-event-harness {
+            display: flex;
+            justify-content: center;
+          }
+
+          .fc .fc-daygrid-event {
+            justify-content: center;
+          }
+
+          .fc .fc-daygrid-event .fc-event-main-frame {
+            justify-content: center;
           }
         `}
       </style>
@@ -215,12 +321,41 @@ export default function Calendar() {
           events={events}
           selectable={false}
           dateClick={onDayClick}
+          eventClick={onEventClick}
+          eventContent={(arg) => {
+            const p: any = arg.event.extendedProps || {}
+            const initials = (p.initials || '').toString().slice(0, 2) || '??'
+            const isBlocked = !!p.isBlocked
+
+            return (
+              <div
+                title={arg.event.title}
+                style={{
+                  width: 22,
+                  height: 22,
+                  borderRadius: 999,
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: 10,
+                  fontWeight: 900,
+                  letterSpacing: 0.2,
+                  color: '#ffffff',
+                  background: isBlocked ? '#9a4f4f' : (p.color || '#2f6f73'),
+                  border: '1px solid rgba(0,0,0,0.08)',
+                  userSelect: 'none',
+                }}
+              >
+                {initials}
+              </div>
+            )
+          }}
           headerToolbar={{
             left: 'prev,next',
             center: 'title',
             right: '',
           }}
-          titleFormat={{ year: 'numeric', month: '2-digit' }}
+          titleFormat={{ year: 'numeric', month: 'long' }}
           dayCellContent={(arg) => {
             const d = arg.date
             return `${d.getMonth() + 1}/${d.getDate()}`
@@ -400,6 +535,56 @@ function Modal(props: {
 function formatDisplayDate(ymd: string) {
   const [y, m, d] = ymd.split('-')
   return `${m}/${d}/${y}`
+}
+
+function getTwoLetterInitials(label: string) {
+  const parts = (label || '')
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+
+  if (parts.length === 0) return '??'
+
+  const first = parts[0]
+  const last = parts.length > 1 ? parts[parts.length - 1] : parts[0]
+
+  const a = (first[0] || '').toUpperCase()
+  const b = (last[0] || '').toUpperCase()
+
+  // If only one word, use first two letters when available
+  if (parts.length === 1) {
+    const two = (first.slice(0, 2) || '').toUpperCase()
+    return two.length === 2 ? two : (a + (first[1] ? first[1].toUpperCase() : a || '?'))
+  }
+
+  return (a + b) || '??'
+}
+
+const USER_COLOR_PALETTE = [
+  '#2f6f73',
+  '#5fa7a3',
+  '#3f7f6b',
+  '#6b8bbd',
+  '#7a6bbd',
+  '#b36b9c',
+  '#c27d4a',
+  '#4b9ab8',
+  '#2f8a6a',
+  '#8a6a2f',
+]
+
+function hashStringToIndex(input: string, modulo: number) {
+  let h = 0
+  for (let i = 0; i < input.length; i++) {
+    h = (h * 31 + input.charCodeAt(i)) >>> 0
+  }
+  return modulo === 0 ? 0 : h % modulo
+}
+
+function colorForLabel(label: string) {
+  const key = (label || '').trim().toLowerCase() || 'unknown'
+  const idx = hashStringToIndex(key, USER_COLOR_PALETTE.length)
+  return USER_COLOR_PALETTE[idx]
 }
 
 /**
