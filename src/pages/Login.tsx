@@ -56,6 +56,28 @@ export default function Login() {
     return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(trimmed)
   }
 
+  function toFriendlyAuthError(message: string) {
+    const m = (message || '').toLowerCase()
+
+    if (m.includes('rate limit')) {
+      return 'Too many attempts. Please wait a moment and try again.'
+    }
+    if (m.includes('invalid') && (m.includes('token') || m.includes('otp') || m.includes('code'))) {
+      return 'That code did not work. Try again or request a new code.'
+    }
+    if (m.includes('expired') && (m.includes('token') || m.includes('otp') || m.includes('code'))) {
+      return 'That code has expired. Request a new code and try again.'
+    }
+    if (m.includes('user not found')) {
+      return 'Sign-in is not available for this email. Request access first.'
+    }
+    if (m.includes('signups not allowed') || m.includes('signup') && m.includes('disabled')) {
+      return 'Sign-in is not available for this email. Request access first.'
+    }
+
+    return 'Something went wrong. Please try again.'
+  }
+
   async function onSubmitRegister(e: FormEvent) {
     e.preventDefault()
     setErrorMsg(null)
@@ -85,12 +107,12 @@ export default function Login() {
       if (error) {
         // 23505 = unique_violation (likely a pending request already exists for this email)
         if ((error as any).code === '23505') {
-          setErrorMsg('A pending request already exists for this email.')
+          setErrorMsg('An access request already exists for this email. An admin will review it soon.')
           setRegSubmitted(true)
           return
         }
 
-        setErrorMsg(error.message)
+        setErrorMsg('Unable to submit the request. Please try again.')
         return
       }
 
@@ -123,7 +145,7 @@ export default function Login() {
       })
 
       if (error) {
-        setErrorMsg(error.message)
+        setErrorMsg(toFriendlyAuthError(error.message))
         return
       }
 
@@ -151,7 +173,7 @@ export default function Login() {
       })
 
       if (error) {
-        setErrorMsg(error.message)
+        setErrorMsg(toFriendlyAuthError(error.message))
         return
       }
 
@@ -159,7 +181,7 @@ export default function Login() {
         closeLogin()
         navigate('/calendar')
       } else {
-        setErrorMsg('Sign-in did not return a session. Try requesting a new code.')
+        setErrorMsg('Sign-in could not be completed. Request a new code and try again.')
       }
     } finally {
       setIsVerifying(false)
