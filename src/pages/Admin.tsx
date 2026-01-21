@@ -259,51 +259,77 @@ export default function Admin() {
 
       {activeTab === 'access' && (
         <Section title="Access requests">
-          {accessLoading ? 'Loading…' : accessRequests.filter(r => r.status === 'pending').map(r => (
-            <Card key={r.id}>
-              <strong>{r.first_name} {r.last_name}</strong>
-              <div>{r.email}</div>
-              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Button compact icon={<IconCheck />} label="Approve" onClick={() => approveRequest(r)} />
-                <div style={{ marginLeft: 'auto' }}>
-                  <Button
-                    compact
-                    icon={<IconClose />}
-                    label="Reject"
-                    variant="danger"
-                    onClick={() => {
-                      const ok = window.confirm(`Reject access request for ${r.first_name} ${r.last_name}?`)
-                      if (!ok) return
-                      rejectRequest(r)
-                    }}
-                  />
-                </div>
-              </div>
-            </Card>
-          ))}
+          {accessError ? (
+            <div style={{ fontSize: 13, color: '#991b1b', fontWeight: 800, marginBottom: 10 }}>
+              {accessError}
+            </div>
+          ) : null}
+
+          {accessLoading ? (
+            <div style={{ fontSize: 13, opacity: 0.8 }}>Loading…</div>
+          ) : accessRequests.filter((r) => r.status === 'pending').length === 0 ? (
+            <div style={{ fontSize: 13, opacity: 0.8 }}>No pending requests.</div>
+          ) : (
+            accessRequests
+              .filter((r) => r.status === 'pending')
+              .map((r) => (
+                <Card key={r.id}>
+                  <strong>{r.first_name} {r.last_name}</strong>
+                  <div>{r.email}</div>
+                  <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                    <Button compact icon={<IconCheck />} label="Approve" onClick={() => approveRequest(r)} />
+                    <div style={{ marginLeft: 'auto' }}>
+                      <Button
+                        compact
+                        icon={<IconClose />}
+                        label="Reject"
+                        variant="danger"
+                        onClick={() => {
+                          const ok = window.confirm(`Reject access request for ${r.first_name} ${r.last_name}?`)
+                          if (!ok) return
+                          rejectRequest(r)
+                        }}
+                      />
+                    </div>
+                  </div>
+                </Card>
+              ))
+          )}
         </Section>
       )}
 
       {activeTab === 'users' && (
         <Section title="User management">
-          {users.map(u => (
-            <Card key={u.id}>
-              <strong>{u.firstName} {u.lastName}</strong>
-              <div>{u.email}</div>
-              <Button
-                compact
-                icon={u.isActive ? <IconLock /> : <IconLockOpen />}
-                label={u.isActive ? 'Deactivate' : 'Activate'}
-                onClick={() => {
-                  if (u.isActive) {
-                    const ok = window.confirm(`Deactivate ${u.firstName || ''} ${u.lastName || ''}`.trim() + '?')
-                    if (!ok) return
-                  }
-                  toggleUserActive(u.id, !u.isActive)
-                }}
-              />
-            </Card>
-          ))}
+          {usersError ? (
+            <div style={{ fontSize: 13, color: '#991b1b', fontWeight: 800, marginBottom: 10 }}>
+              {usersError}
+            </div>
+          ) : null}
+
+          {usersLoading ? (
+            <div style={{ fontSize: 13, opacity: 0.8 }}>Loading…</div>
+          ) : users.length === 0 ? (
+            <div style={{ fontSize: 13, opacity: 0.8 }}>No users found.</div>
+          ) : (
+            users.map((u) => (
+              <Card key={u.id}>
+                <strong>{u.firstName} {u.lastName}</strong>
+                <div>{u.email}</div>
+                <Button
+                  compact
+                  icon={u.isActive ? <IconLock /> : <IconLockOpen />}
+                  label={u.isActive ? 'Deactivate' : 'Activate'}
+                  onClick={() => {
+                    if (u.isActive) {
+                      const ok = window.confirm(`Deactivate ${u.firstName || ''} ${u.lastName || ''}`.trim() + '?')
+                      if (!ok) return
+                    }
+                    toggleUserActive(u.id, !u.isActive)
+                  }}
+                />
+              </Card>
+            ))
+          )}
         </Section>
       )}
 
@@ -312,50 +338,62 @@ export default function Admin() {
           title="Booking management"
           right={<Button icon={<IconAdd />} label="New entry" onClick={openCreateBooking} />}
         >
-          {bookings.map(b => (
-            <Card key={b.id}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <strong>{b.label}</strong>
+          {bookingsError ? (
+            <div style={{ fontSize: 13, color: '#991b1b', fontWeight: 800, marginBottom: 10 }}>
+              {bookingsError}
+            </div>
+          ) : null}
 
-                    {isTodayWithinBooking(b.start, b.end) ? (
-                    <span
-                        style={{
-                        marginLeft: 'auto',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        height: 22,
-                        padding: '0 10px',
-                        borderRadius: 999,
-                        fontSize: 12,
-                        fontWeight: 900,
-                        background: 'rgba(47, 111, 115, 0.14)',
-                        color: '#2f6f73',
-                        border: '1px solid rgba(47, 111, 115, 0.22)',
-                        }}
-                    >
-                        Active
-                    </span>
-                    ) : null}
+          {bookingsLoading ? (
+            <div style={{ fontSize: 13, opacity: 0.8 }}>Loading…</div>
+          ) : bookings.length === 0 ? (
+            <div style={{ fontSize: 13, opacity: 0.8 }}>No bookings yet.</div>
+          ) : (
+            bookings.map((b) => (
+              <Card key={b.id}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <strong>{b.label}</strong>
+
+                      {isTodayWithinBooking(b.start, b.end) ? (
+                      <span
+                          style={{
+                          marginLeft: 'auto',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          height: 22,
+                          padding: '0 10px',
+                          borderRadius: 999,
+                          fontSize: 12,
+                          fontWeight: 900,
+                          background: 'rgba(47, 111, 115, 0.14)',
+                          color: '#2f6f73',
+                          border: '1px solid rgba(47, 111, 115, 0.22)',
+                          }}
+                      >
+                          Active
+                      </span>
+                      ) : null}
+                  </div>
+                <div>{formatDisplayDate(b.start)} → {formatDisplayDate(toInclusiveEnd(b.end))}</div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <Button compact icon={<IconEdit />} label="Edit" onClick={() => openEditBooking(b)} />
+                  <div style={{ marginLeft: 'auto' }}>
+                    <Button
+                      compact
+                      icon={<IconDelete />}
+                      label="Remove"
+                      variant="danger"
+                      onClick={() => {
+                        const ok = window.confirm(`Remove this booking for ${b.label}?`)
+                        if (!ok) return
+                        deleteBooking(b.id)
+                      }}
+                    />
+                  </div>
                 </div>
-              <div>{formatDisplayDate(b.start)} → {formatDisplayDate(toInclusiveEnd(b.end))}</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <Button compact icon={<IconEdit />} label="Edit" onClick={() => openEditBooking(b)} />
-                <div style={{ marginLeft: 'auto' }}>
-                  <Button
-                    compact
-                    icon={<IconDelete />}
-                    label="Remove"
-                    variant="danger"
-                    onClick={() => {
-                      const ok = window.confirm(`Remove this booking for ${b.label}?`)
-                      if (!ok) return
-                      deleteBooking(b.id)
-                    }}
-                  />
-                </div>
-              </div>
-            </Card>
-          ))}
+              </Card>
+            ))
+          )}
         </Section>
       )}
 
