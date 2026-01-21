@@ -24,8 +24,8 @@ type AccessRequest = {
 type Booking = {
   id: string
   label: string
-  start: string // YYYY-MM-DD
-  end: string // YYYY-MM-DD (end-exclusive)
+  start: string
+  end: string
   notes?: string
   createdBy?: string
   isBlocked?: boolean
@@ -33,27 +33,30 @@ type Booking = {
 
 type BookingDraft = {
   label: string
-  start: string // YYYY-MM-DD
-  endInclusive: string // YYYY-MM-DD (inclusive, for UI)
+  start: string
+  endInclusive: string
   notes: string
   isBlocked: boolean
 }
 
 export default function Admin() {
   const [users, setUsers] = useState<AdminUser[]>([])
-  const [usersLoading, setUsersLoading] = useState(false)
-  const [usersError, setUsersError] = useState<string | null>(null)
-
-  const [bookings, setBookings] = useState<Booking[]>([])
-  const [bookingsLoading, setBookingsLoading] = useState(false)
-  const [bookingsError, setBookingsError] = useState<string | null>(null)
-
   const [accessRequests, setAccessRequests] = useState<AccessRequest[]>([])
+  const [bookings, setBookings] = useState<Booking[]>([])
+
+  const [usersLoading, setUsersLoading] = useState(false)
   const [accessLoading, setAccessLoading] = useState(false)
+  const [bookingsLoading, setBookingsLoading] = useState(false)
+
+  const [usersError, setUsersError] = useState<string | null>(null)
   const [accessError, setAccessError] = useState<string | null>(null)
+  const [bookingsError, setBookingsError] = useState<string | null>(null)
 
   const [draftOpen, setDraftOpen] = useState(false)
   const [editingId, setEditingId] = useState<string | null>(null)
+
+  const [activeTab, setActiveTab] = useState<'access' | 'users' | 'bookings'>('bookings')
+
   const [draft, setDraft] = useState<BookingDraft>({
     label: '',
     start: todayYmd(),
@@ -62,175 +65,107 @@ export default function Admin() {
     isBlocked: false,
   })
 
-  async function loadAccessRequests() {
-    setAccessLoading(true)
-    setAccessError(null)
-    try {
-      const { data, error } = await supabase
-        .from('access_requests')
-        .select('id,email,first_name,last_name,phone,invite_code,status,created_at')
-        .order('created_at', { ascending: false })
-
-      if (error) {
-        setAccessError('Unable to load access requests. Please try again.')
-        setAccessRequests([])
-        return
-      }
-
-      setAccessRequests((data || []) as AccessRequest[])
-    } finally {
-      setAccessLoading(false)
-    }
-  }
-
-  async function loadUsers() {
-    setUsersLoading(true)
-    setUsersError(null)
-    try {
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('id,email,first_name,last_name,role,is_active')
-        .order('email', { ascending: true })
-
-      if (error) {
-        setUsersError('Unable to load users. Please try again.')
-        setUsers([])
-        return
-      }
-
-      const rows = (data || []) as any[]
-      setUsers(
-        rows.map((r) => ({
-          id: r.id,
-          email: r.email,
-          firstName: r.first_name || undefined,
-          lastName: r.last_name || undefined,
-          role: (r.role === 'admin' ? 'admin' : 'member') as 'admin' | 'member',
-          isActive: !!r.is_active,
-        }))
-      )
-    } finally {
-      setUsersLoading(false)
-    }
-  }
-
-  async function loadBookings() {
-    setBookingsLoading(true)
-    setBookingsError(null)
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('id,label,start_date,end_date,notes,is_blocked,created_by')
-        .order('start_date', { ascending: false })
-
-      if (error) {
-        setBookingsError('Unable to load entries. Please try again.')
-        setBookings([])
-        return
-      }
-
-      const rows = (data || []) as any[]
-      setBookings(
-        rows.map((r) => ({
-          id: r.id,
-          label: r.label,
-          start: r.start_date,
-          end: r.end_date,
-          notes: r.notes || undefined,
-          createdBy: r.created_by || undefined,
-          isBlocked: !!r.is_blocked,
-        }))
-      )
-    } finally {
-      setBookingsLoading(false)
-    }
-  }
-
   useEffect(() => {
     loadAccessRequests()
     loadUsers()
     loadBookings()
   }, [])
 
-  async function approveRequest(r: AccessRequest) {
-    const ok = window.confirm(`Approve access for ${r.email}?`)
-    if (!ok) return
-
-    // 1) mark request approved
-    const { error: reqErr } = await supabase
+  async function loadAccessRequests() {
+    setAccessLoading(true)
+    setAccessError(null)
+    const { data, error } = await supabase
       .from('access_requests')
-      .update({ status: 'approved' })
-      .eq('id', r.id)
+      .select('*')
+      .order('created_at', { ascending: false })
 
-    if (reqErr) {
-      alert(reqErr.message)
-      return
-    }
+    if (error) setAccessError('Unable to load access requests.')
+    setAccessRequests(data || [])
+    setAccessLoading(false)
+  }
 
-    // 2) attempt to activate an existing profile (if the auth user already exists)
-    const { data: updatedProfiles, error: profErr } = await supabase
+  async function loadUsers() {
+    setUsersLoading(true)
+    setUsersError(null)
+    const { data, error } = await supabase
       .from('profiles')
-      .update({ is_active: true })
-      .eq('email', r.email)
-      .select('id')
+      .select('id,email,first_name,last_name,role,is_active')
 
-    const count = updatedProfiles?.length ?? 0
+    if (error) setUsersError('Unable to load users.')
+    const mapped: AdminUser[] = (data || []).map((r: any) => ({
+      id: r.id,
+      email: r.email,
+      firstName: r.first_name,
+      lastName: r.last_name,
+      role: r.role,
+      isActive: r.is_active,
+    }))
 
-    if (profErr) {
-      // Access request is still approved; profile activation can be retried later.
-      alert(`Approved request, but profile activation failed: ${profErr.message}`)
-      await loadAccessRequests()
-      return
-    }
+    mapped.sort((a, b) => {
+      const aFirst = (a.firstName || '').trim().toLowerCase()
+      const bFirst = (b.firstName || '').trim().toLowerCase()
+      if (aFirst && bFirst && aFirst !== bFirst) return aFirst.localeCompare(bFirst)
+      if (aFirst && !bFirst) return -1
+      if (!aFirst && bFirst) return 1
 
-    if (!count) {
-      alert('Approved request. Note: no existing auth user/profile was found for this email yet.')
-    }
+      const aLast = (a.lastName || '').trim().toLowerCase()
+      const bLast = (b.lastName || '').trim().toLowerCase()
+      if (aLast && bLast && aLast !== bLast) return aLast.localeCompare(bLast)
+      if (aLast && !bLast) return -1
+      if (!aLast && bLast) return 1
 
-    await loadAccessRequests()
+      return (a.email || '').toLowerCase().localeCompare((b.email || '').toLowerCase())
+    })
+
+    setUsers(mapped)
+    setUsersLoading(false)
+  }
+
+  async function loadBookings() {
+    setBookingsLoading(true)
+    setBookingsError(null)
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*')
+      .order('start_date', { ascending: true })
+
+    if (error) setBookingsError('Unable to load bookings.')
+    setBookings(
+      (data || []).map((b: any) => ({
+        id: b.id,
+        label: b.label,
+        start: b.start_date,
+        end: b.end_date,
+        notes: b.notes,
+        createdBy: b.created_by,
+        isBlocked: b.is_blocked,
+      }))
+    )
+    setBookingsLoading(false)
+  }
+
+  async function approveRequest(r: AccessRequest) {
+    await supabase.from('access_requests').update({ status: 'approved' }).eq('id', r.id)
+    await supabase.from('profiles').update({ is_active: true }).eq('email', r.email)
+    loadAccessRequests()
   }
 
   async function rejectRequest(r: AccessRequest) {
-    const ok = window.confirm(`Reject access for ${r.email}?`)
-    if (!ok) return
-
-    const { error } = await supabase
-      .from('access_requests')
-      .update({ status: 'rejected' })
-      .eq('id', r.id)
-
-    if (error) {
-      alert(error.message)
-      return
-    }
-
-    await loadAccessRequests()
+    await supabase.from('access_requests').update({ status: 'rejected' }).eq('id', r.id)
+    loadAccessRequests()
   }
 
-  async function toggleUserActive(userId: string, nextActive: boolean) {
-    const ok = window.confirm(nextActive ? 'Activate this user?' : 'Deactivate this user?')
-    if (!ok) return
-
-    const { error } = await supabase
-      .from('profiles')
-      .update({ is_active: nextActive })
-      .eq('id', userId)
-
-    if (error) {
-      alert('Unable to update user status. Please try again.')
-      return
-    }
-
-    await loadUsers()
+  async function toggleUserActive(id: string, next: boolean) {
+    await supabase.from('profiles').update({ is_active: next }).eq('id', id)
+    loadUsers()
   }
 
   function openCreateBooking() {
     setEditingId(null)
-    const t = todayYmd()
     setDraft({
       label: '',
-      start: t,
-      endInclusive: t,
+      start: todayYmd(),
+      endInclusive: todayYmd(),
       notes: '',
       isBlocked: false,
     })
@@ -249,688 +184,432 @@ export default function Admin() {
     setDraftOpen(true)
   }
 
-  function closeDraft() {
-    setDraftOpen(false)
-  }
-
   async function saveDraft() {
-    if (!draft.label.trim()) return
-
-    const label = draft.isBlocked ? ensureBlockedPrefix(draft.label.trim()) : draft.label.trim()
-    const payload: any = {
-      label,
+    const payload = {
+      label: draft.isBlocked ? `Blocked: ${draft.label}` : draft.label,
       start_date: draft.start,
       end_date: toExclusiveEnd(draft.endInclusive),
-      notes: draft.notes.trim() ? draft.notes.trim() : null,
+      notes: draft.notes || null,
       is_blocked: draft.isBlocked,
     }
 
-    if (!editingId) {
-      const { data: u } = await supabase.auth.getUser()
-      const uid = u?.user?.id
-      if (!uid) {
-        alert('Unable to create entry. Please sign in again.')
-        return
-      }
-
-      const { error } = await supabase
-        .from('bookings')
-        .insert({ ...payload, created_by: uid })
-
-      if (error) {
-        alert('Unable to create entry. Please try again.')
-        return
-      }
+    if (editingId) {
+      await supabase.from('bookings').update(payload).eq('id', editingId)
     } else {
-      const { error } = await supabase
-        .from('bookings')
-        .update(payload)
-        .eq('id', editingId)
-
-      if (error) {
-        alert('Unable to update entry. Please try again.')
-        return
-      }
+      const { data } = await supabase.auth.getUser()
+      await supabase.from('bookings').insert({ ...payload, created_by: data.user?.id })
     }
 
     setDraftOpen(false)
-    await loadBookings()
+    loadBookings()
   }
 
   async function deleteBooking(id: string) {
-    const ok = window.confirm('Remove this entry?')
-    if (!ok) return
-
-    const { error } = await supabase.from('bookings').delete().eq('id', id)
-
-    if (error) {
-      alert('Unable to remove entry. Please try again.')
-      return
-    }
-
-    await loadBookings()
+    await supabase.from('bookings').delete().eq('id', id)
+    loadBookings()
   }
 
   return (
-    <div
-      style={{
-        minHeight: '100vh',
-        background: '#eef4f3',
-        color: '#1f2933',
-        padding: 16,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
-        <h1 style={{ margin: 0, color: '#2f6f73' }}>Admin</h1>
-        <div style={{ fontSize: 12, color: '#1f2933', opacity: 0.75 }}>
-          Admin-only tools for managing users and entries.
+    <div style={{ minHeight: '100vh', padding: 16, background: '#eef4f3' }}>
+      <h1 style={{ margin: 0, color: '#2f6f73' }}>Admin</h1>
+      <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>
+        Admin-only tools for managing users and entries.
+      </div>
+
+      <div style={{ marginTop: 14 }}>
+        <div style={segmentedWrapStyle}>
+          <button
+            type="button"
+            onClick={() => setActiveTab('bookings')}
+            style={activeTab === 'bookings' ? segmentBtnActive : segmentBtn}
+          >
+            <span style={segmentInner}>
+              <span style={segmentIcon} aria-hidden="true">
+                <IconCalendarToday />
+              </span>
+              <span>Bookings</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('users')}
+            style={activeTab === 'users' ? segmentBtnActive : segmentBtn}
+          >
+            <span style={segmentInner}>
+              <span style={segmentIcon} aria-hidden="true">
+                <IconGroup />
+              </span>
+              <span>Users</span>
+            </span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('access')}
+            style={activeTab === 'access' ? segmentBtnActive : segmentBtn}
+          >
+            <span style={segmentInner}>
+              <span style={segmentIcon} aria-hidden="true">
+                <IconPersonAdd />
+              </span>
+              <span>Pending</span>
+            </span>
+          </button>
         </div>
       </div>
 
-      {/* Access Requests */}
-      <Section
-        title="Access requests"
-        description="Review new registration requests. Approving activates an existing profile if the auth user already exists."
-        rightAction={
-          <button type="button" onClick={() => { loadAccessRequests(); loadUsers(); }} style={secondaryBtn}>
-            Refresh
-          </button>
-        }
-      >
-        <div style={cardStyle}>
-          {accessError ? (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                border: '1px solid rgba(154, 79, 79, 0.35)',
-                background: 'rgba(154, 79, 79, 0.08)',
-                color: '#9a4f4f',
-                fontSize: 13,
-                fontWeight: 900,
-              }}
-            >
-              {accessError}
-            </div>
-          ) : null}
-
-          <div style={{ marginTop: accessError ? 12 : 0 }}>
-            {accessLoading ? (
-              <div style={{ opacity: 0.75, fontSize: 13 }}>Loading access requests…</div>
-            ) : (
-              <div style={gridStyle}>
-                {accessRequests.filter((r) => r.status === 'pending').length === 0 ? (
-                  <div style={itemCardStyle}>
-                    <div style={{ fontWeight: 900, color: '#1f2933' }}>No pending requests</div>
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                      New registration requests will appear here.
-                    </div>
-                  </div>
-                ) : (
-                  accessRequests
-                    .filter((r) => r.status === 'pending')
-                    .map((r) => (
-                      <div key={r.id} style={itemCardStyle}>
-                        <div
-                          style={{
-                            display: 'flex',
-                            alignItems: 'flex-start',
-                            justifyContent: 'space-between',
-                            gap: 12,
-                          }}
-                        >
-                          <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 900, color: '#1f2933' }}>
-                              {r.first_name} {r.last_name}
-                            </div>
-                            <div style={{ fontSize: 12, opacity: 0.8, wordBreak: 'break-word' }}>
-                              {r.email}
-                            </div>
-                          </div>
-
-                          <span style={chip('#5fa7a3')}>pending</span>
-                        </div>
-
-                        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.85 }}>
-                          Requested: {formatDisplayDateTime(r.created_at)}
-                        </div>
-
-                        {r.phone ? (
-                          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-                            Phone: {r.phone}
-                          </div>
-                        ) : null}
-
-                        {r.invite_code ? (
-                          <div style={{ marginTop: 6, fontSize: 12, opacity: 0.85 }}>
-                            Invite code: <span style={{ fontWeight: 900 }}>{r.invite_code}</span>
-                          </div>
-                        ) : null}
-
-                        <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end', gap: 8, flexWrap: 'wrap' }}>
-                          <button type="button" onClick={() => rejectRequest(r)} style={dangerOutlineBtn}>
-                            Reject
-                          </button>
-                          <button type="button" onClick={() => approveRequest(r)} style={primaryBtn}>
-                            Approve
-                          </button>
-                        </div>
-
-                        <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
-                          If the auth user does not exist yet, create the user in Supabase Auth (Users) and re-approve to activate.
-                        </div>
-                      </div>
-                    ))
-                )}
-              </div>
-            )}
-          </div>
-        </div>
-      </Section>
-
-      {/* User Management */}
-      <Section
-        title="User management"
-        description="View users, roles, and active status. Deactivating a user removes access."
-      >
-        <div style={cardStyle}>
-          {usersError ? (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                border: '1px solid rgba(154, 79, 79, 0.35)',
-                background: 'rgba(154, 79, 79, 0.08)',
-                color: '#9a4f4f',
-                fontSize: 13,
-                fontWeight: 900,
-              }}
-            >
-              {usersError}
-            </div>
-          ) : null}
-
-          <div style={{ marginTop: usersError ? 12 : 0 }}>
-            {usersLoading ? (
-              <div style={{ opacity: 0.75, fontSize: 13 }}>Loading users…</div>
-            ) : users.length === 0 ? (
-              <div style={itemCardStyle}>
-                <div style={{ fontWeight: 900, color: '#1f2933' }}>No users found</div>
-                <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                  Users will appear here after accounts are created.
+      {activeTab === 'access' && (
+        <Section title="Access requests">
+          {accessLoading ? 'Loading…' : accessRequests.filter(r => r.status === 'pending').map(r => (
+            <Card key={r.id}>
+              <strong>{r.first_name} {r.last_name}</strong>
+              <div>{r.email}</div>
+              <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Button compact icon={<IconCheck />} label="Approve" onClick={() => approveRequest(r)} />
+                <div style={{ marginLeft: 'auto' }}>
+                  <Button compact icon={<IconClose />} label="Reject" variant="danger" onClick={() => rejectRequest(r)} />
                 </div>
               </div>
-            ) : (
-              <div style={gridStyle}>
-                {users.map((u) => {
-                  const name = [u.firstName, u.lastName].filter(Boolean).join(' ') || u.email
-                  return (
-                    <div key={u.id} style={itemCardStyle}>
-                      <div
+            </Card>
+          ))}
+        </Section>
+      )}
+
+      {activeTab === 'users' && (
+        <Section title="User management">
+          {users.map(u => (
+            <Card key={u.id}>
+              <strong>{u.firstName} {u.lastName}</strong>
+              <div>{u.email}</div>
+              <Button
+                compact
+                icon={u.isActive ? <IconLock /> : <IconLockOpen />}
+                label={u.isActive ? 'Deactivate' : 'Activate'}
+                onClick={() => toggleUserActive(u.id, !u.isActive)}
+              />
+            </Card>
+          ))}
+        </Section>
+      )}
+
+      {activeTab === 'bookings' && (
+        <Section
+          title="Booking management"
+          right={<Button icon={<IconAdd />} label="New entry" onClick={openCreateBooking} />}
+        >
+          {bookings.map(b => (
+            <Card key={b.id}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                    <strong>{b.label}</strong>
+
+                    {isTodayWithinBooking(b.start, b.end) ? (
+                    <span
                         style={{
-                          display: 'flex',
-                          alignItems: 'flex-start',
-                          justifyContent: 'space-between',
-                          gap: 12,
+                        marginLeft: 'auto',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        height: 22,
+                        padding: '0 10px',
+                        borderRadius: 999,
+                        fontSize: 12,
+                        fontWeight: 900,
+                        background: 'rgba(47, 111, 115, 0.14)',
+                        color: '#2f6f73',
+                        border: '1px solid rgba(47, 111, 115, 0.22)',
                         }}
-                      >
-                        <div style={{ minWidth: 0 }}>
-                          <div style={{ fontWeight: 900, color: '#1f2933' }}>{name}</div>
-                          <div style={{ fontSize: 12, opacity: 0.8, wordBreak: 'break-word' }}>
-                            {u.email}
-                          </div>
-                        </div>
-
-                        <div
-                          style={{
-                            display: 'flex',
-                            gap: 8,
-                            flexWrap: 'wrap',
-                            justifyContent: 'flex-end',
-                          }}
-                        >
-                          <span style={chip(u.role === 'admin' ? '#2f6f73' : '#5fa7a3')}>
-                            {u.role}
-                          </span>
-                          <span style={chip(u.isActive ? '#2f6f73' : '#9aa7a5')}>
-                            {u.isActive ? 'Active' : 'Inactive'}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div style={{ marginTop: 12, display: 'flex', justifyContent: 'flex-end' }}>
-                        <button
-                          type="button"
-                          onClick={() => toggleUserActive(u.id, !u.isActive)}
-                          style={u.isActive ? dangerOutlineBtn : primaryOutlineBtn}
-                        >
-                          {u.isActive ? 'Deactivate' : 'Activate'}
-                        </button>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-            Note: user creation/invites are handled separately. Approval controls activation.
-          </div>
-        </div>
-      </Section>
-
-      {/* Booking Management */}
-      <Section
-        title="Booking management"
-        description="Create, edit, and remove entries. Admin can book for others and block off dates."
-        rightAction={
-          <button type="button" onClick={openCreateBooking} style={primaryBtn}>
-            New entry
-          </button>
-        }
-      >
-        <div style={cardStyle}>
-          {bookingsError ? (
-            <div
-              style={{
-                padding: 12,
-                borderRadius: 14,
-                border: '1px solid rgba(154, 79, 79, 0.35)',
-                background: 'rgba(154, 79, 79, 0.08)',
-                color: '#9a4f4f',
-                fontSize: 13,
-                fontWeight: 900,
-              }}
-            >
-              {bookingsError}
-            </div>
-          ) : null}
-
-          <div style={{ marginTop: bookingsError ? 12 : 0 }}>
-            {bookingsLoading ? (
-              <div style={{ opacity: 0.75, fontSize: 13 }}>Loading entries…</div>
-            ) : (
-              <div style={gridStyle}>
-                {bookings.map((b) => (
-                  <div key={b.id} style={itemCardStyle}>
-                    <div
-                      style={{
-                        display: 'flex',
-                        alignItems: 'flex-start',
-                        justifyContent: 'space-between',
-                        gap: 12,
-                      }}
                     >
-                      <div style={{ minWidth: 0 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-                          <div style={{ fontWeight: 900, color: '#1f2933' }}>{b.label}</div>
-                          {b.isBlocked ? <span style={chip('#9a6b4f')}>blocked</span> : null}
-                        </div>
-
-                        <div style={{ marginTop: 4, fontSize: 12, opacity: 0.85 }}>
-                          {formatDisplayDate(b.start)} → {formatDisplayDate(toInclusiveEnd(b.end))}
-                        </div>
-                      </div>
-
-                      <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                        <button type="button" onClick={() => openEditBooking(b)} style={primaryOutlineBtn}>
-                          Edit
-                        </button>
-                        <button type="button" onClick={() => deleteBooking(b.id)} style={dangerOutlineBtn}>
-                          Remove
-                        </button>
-                      </div>
-                    </div>
-
-                    <div style={{ marginTop: 10, fontSize: 13 }}>
-                      {b.notes ? (
-                        <div style={{ opacity: 0.9 }}>{b.notes}</div>
-                      ) : (
-                        <div style={{ opacity: 0.55 }}>No notes.</div>
-                      )}
-                    </div>
-
-                    <div style={{ marginTop: 10, fontSize: 12, opacity: 0.7 }}>
-                      Created by: {b.createdBy || '—'}
-                    </div>
-                  </div>
-                ))}
-
-                {!bookingsLoading && bookings.length === 0 ? (
-                  <div style={itemCardStyle}>
-                    <div style={{ fontWeight: 900, color: '#1f2933' }}>No entries yet</div>
-                    <div style={{ marginTop: 6, fontSize: 12, opacity: 0.75 }}>
-                      Create an entry to populate the calendar.
-                    </div>
-                  </div>
-                ) : null}
+                        Active
+                    </span>
+                    ) : null}
+                </div>
+              <div>{formatDisplayDate(b.start)} → {formatDisplayDate(toInclusiveEnd(b.end))}</div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <Button compact icon={<IconEdit />} label="Edit" onClick={() => openEditBooking(b)} />
+                <div style={{ marginLeft: 'auto' }}>
+                  <Button compact icon={<IconDelete />} label="Remove" variant="danger" onClick={() => deleteBooking(b.id)} />
+                </div>
               </div>
-            )}
-          </div>
-
-          <div style={{ marginTop: 12, fontSize: 12, opacity: 0.75 }}>
-            Note: this page uses the same bookings table as the calendar.
-          </div>
-        </div>
-      </Section>
+            </Card>
+          ))}
+        </Section>
+      )}
 
       {draftOpen && (
-        <Modal title={editingId ? 'Edit entry' : 'New entry'} onClose={closeDraft}>
-          <form
-            onSubmit={(e) => {
-              e.preventDefault()
-              saveDraft()
-            }}
-            style={{ display: 'grid', gap: 12 }}
-          >
-            <label style={labelStyle}>
-              <span style={labelTextStyle}>Label</span>
-              <input
-                type="text"
-                value={draft.label}
-                onChange={(e) => setDraft({ ...draft, label: e.target.value })}
-                placeholder="e.g., Zack, Mom/Dad, Cousins"
-                style={inputStyle}
-              />
-            </label>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-              <label style={labelStyle}>
-                <span style={labelTextStyle}>Start date</span>
-                <input
-                  type="date"
-                  value={draft.start}
-                  onChange={(e) => setDraft({ ...draft, start: e.target.value })}
-                  style={inputStyle}
-                />
-              </label>
-
-              <label style={labelStyle}>
-                <span style={labelTextStyle}>End date (inclusive)</span>
-                <input
-                  type="date"
-                  value={draft.endInclusive}
-                  onChange={(e) => setDraft({ ...draft, endInclusive: e.target.value })}
-                  style={inputStyle}
-                />
-              </label>
-            </div>
-
-            <label style={labelStyle}>
-              <span style={labelTextStyle}>Notes (optional)</span>
-              <textarea
-                rows={3}
-                value={draft.notes}
-                onChange={(e) => setDraft({ ...draft, notes: e.target.value })}
-                placeholder="Anything helpful..."
-                style={{ ...inputStyle, paddingTop: 10, resize: 'vertical' }}
-              />
-            </label>
-
-            <label style={{ display: 'flex', alignItems: 'center', gap: 10, fontSize: 13 }}>
-              <input
-                type="checkbox"
-                checked={draft.isBlocked}
-                onChange={(e) => setDraft({ ...draft, isBlocked: e.target.checked })}
-              />
-              Block dates (maintenance, private event, etc.)
-            </label>
-
-            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
-              <button type="button" onClick={closeDraft} style={secondaryBtn}>
-                Cancel
-              </button>
-              <button type="submit" style={primaryBtn} disabled={!draft.label.trim()}>
-                Save
-              </button>
-            </div>
-          </form>
+        <Modal title={editingId ? 'Edit entry' : 'New entry'} onClose={() => setDraftOpen(false)}>
+          <input value={draft.label} onChange={e => setDraft({ ...draft, label: e.target.value })} />
+          <input type="date" value={draft.start} onChange={e => setDraft({ ...draft, start: e.target.value })} />
+          <input type="date" value={draft.endInclusive} onChange={e => setDraft({ ...draft, endInclusive: e.target.value })} />
+          <textarea value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} />
+          <Button compact icon={<IconCheck />} label="Save" onClick={saveDraft} />
         </Modal>
       )}
     </div>
   )
 }
 
-function Section(props: {
-  title: string
-  description?: string
-  rightAction?: React.ReactNode
-  children: React.ReactNode
-}) {
-  return (
-    <section style={{ marginTop: 18 }}>
-      <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap' }}>
-        <div>
-          <div style={{ fontSize: 14, fontWeight: 900, color: '#2f6f73' }}>{props.title}</div>
-          {props.description ? (
-            <div style={{ marginTop: 4, fontSize: 12, opacity: 0.75 }}>
-              {props.description}
-            </div>
-          ) : null}
-        </div>
-        {props.rightAction ? <div>{props.rightAction}</div> : null}
-      </div>
+/* ---------- Shared UI ---------- */
 
-      <div style={{ marginTop: 10 }}>{props.children}</div>
+function Section({ title, children, right }: any) {
+  return (
+    <section style={{ marginTop: 20 }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+        <strong>{title}</strong>
+        {right}
+      </div>
+      <div style={{ marginTop: 10 }}>{children}</div>
     </section>
   )
 }
 
-function Modal(props: { title: string; onClose: () => void; children: React.ReactNode }) {
+function Card({ children }: any) {
+  return <div style={{ background: '#fff', padding: 14, borderRadius: 12, marginBottom: 10 }}>{children}</div>
+}
+
+function Button({ icon, label, onClick, variant, disabled, compact }: any) {
+  const isDanger = variant === 'danger'
+  const isCompact = !!compact
   return (
-    <div
-      role="dialog"
-      aria-modal="true"
+    <button
+      onClick={onClick}
+      disabled={disabled}
       style={{
-        position: 'fixed',
-        inset: 0,
-        zIndex: 9999,
-        background: 'rgba(47, 111, 115, 0.25)',
-        backdropFilter: 'blur(2px)',
-        display: 'flex',
+        display: 'inline-flex',
+        gap: 8,
         alignItems: 'center',
         justifyContent: 'center',
-        padding: 16,
+        height: isCompact ? 30 : 36,
+        padding: isCompact ? '0 10px' : '0 12px',
+        borderRadius: isCompact ? 10 : 12,
+        border: '1px solid rgba(47,111,115,0.18)',
+        background: isDanger ? 'rgba(185, 28, 28, 0.10)' : 'rgba(255,255,255,0.92)',
+        color: isDanger ? '#991b1b' : '#1f2933',
+        fontWeight: 800,
+        cursor: 'pointer',
+        fontSize: isCompact ? 12 : undefined,
       }}
-      onClick={props.onClose}
     >
-      <div
-        style={{
-          width: 'min(720px, 100%)',
-          background: '#ffffff',
-          color: '#1f2933',
-          borderRadius: 14,
-          padding: 16,
-          border: '1px solid #d6e6e3',
-          boxShadow: '0 16px 40px rgba(0,0,0,0.2)',
-        }}
-        onClick={(e) => e.stopPropagation()}
-      >
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
-          <strong style={{ color: '#2f6f73' }}>{props.title}</strong>
-          <button type="button" onClick={props.onClose} style={iconBtn} aria-label="Close">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ display: 'block' }}>
-              <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-            </svg>
-          </button>
-        </div>
-
-        <div style={{ marginTop: 12 }}>{props.children}</div>
-      </div>
-    </div>
+      {icon ? (
+        <span
+          style={{
+            width: isCompact ? 16 : 18,
+            height: isCompact ? 16 : 18,
+            display: 'inline-flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+          }}
+        >
+          {icon}
+        </span>
+      ) : null}
+      <span>{label}</span>
+    </button>
   )
 }
 
-/**
- * Styles (kept inline for now; can be moved to a shared component later)
- */
-
-const cardStyle: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #d6e6e3',
-  borderRadius: 14,
-  padding: 14,
-}
-
-const gridStyle: React.CSSProperties = {
+const segmentedWrapStyle: React.CSSProperties = {
   display: 'grid',
-  gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
-  gap: 12,
-}
-
-const itemCardStyle: React.CSSProperties = {
-  background: '#ffffff',
-  border: '1px solid #d6e6e3',
+  gridTemplateColumns: 'repeat(3, minmax(0, 1fr))',
+  gap: 0,
   borderRadius: 14,
-  padding: 14,
+  border: '1px solid rgba(47,111,115,0.22)',
+  background: 'rgba(255,255,255,0.70)',
+  overflow: 'hidden',
+  width: '100%',
+  maxWidth: 520,
 }
 
-const primaryBtn: React.CSSProperties = {
+const segmentBtn: React.CSSProperties = {
   height: 40,
-  padding: '0 14px',
-  borderRadius: 12,
-  border: '1px solid #2f6f73',
+  padding: '0 10px',
+  border: 'none',
+  background: 'transparent',
+  color: '#2f6f73',
+  fontSize: 13,
+  fontWeight: 800,
+  cursor: 'pointer',
+}
+
+const segmentBtnActive: React.CSSProperties = {
+  ...segmentBtn,
   background: '#2f6f73',
   color: '#ffffff',
-  fontWeight: 900,
-  cursor: 'pointer',
 }
 
-const secondaryBtn: React.CSSProperties = {
-  height: 40,
-  padding: '0 14px',
-  borderRadius: 12,
-  border: '1px solid #d6e6e3',
-  background: '#ffffff',
-  color: '#2f6f73',
-  fontWeight: 900,
-  cursor: 'pointer',
-}
-
-const primaryOutlineBtn: React.CSSProperties = {
-  height: 34,
-  padding: '0 12px',
-  borderRadius: 12,
-  border: '1px solid #2f6f73',
-  background: '#ffffff',
-  color: '#2f6f73',
-  fontWeight: 900,
-  cursor: 'pointer',
-}
-
-const dangerOutlineBtn: React.CSSProperties = {
-  height: 34,
-  padding: '0 12px',
-  borderRadius: 12,
-  border: '1px solid #9a4f4f',
-  background: '#ffffff',
-  color: '#9a4f4f',
-  fontWeight: 900,
-  cursor: 'pointer',
-}
-
-const iconBtn: React.CSSProperties = {
-  height: 36,
-  width: 36,
-  padding: 0,
-  lineHeight: 0,
-  borderRadius: 12,
-  border: '1px solid #d6e6e3',
-  background: '#ffffff',
-  cursor: 'pointer',
-  display: 'flex',
+const segmentInner: React.CSSProperties = {
+  display: 'inline-flex',
   alignItems: 'center',
   justifyContent: 'center',
-  color: '#2f6f73',
+  gap: 8,
+  width: '100%',
 }
 
-const labelStyle: React.CSSProperties = {
-  display: 'grid',
-  gap: 6,
+const segmentIcon: React.CSSProperties = {
+  width: 16,
+  height: 16,
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
 }
 
-const labelTextStyle: React.CSSProperties = {
-  fontSize: 12,
-  opacity: 0.8,
+/* ---------- Icons ---------- */
+
+function SvgIcon(props: { children: React.ReactNode }) {
+  return (
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{ display: 'block' }}
+    >
+      {props.children}
+    </svg>
+  )
 }
 
-const inputStyle: React.CSSProperties = {
-  height: 40,
-  borderRadius: 12,
-  border: '1px solid #d6e6e3',
-  padding: '0 12px',
-  fontSize: 14,
-  outline: 'none',
-  color: '#1f2933',
-  background: '#ffffff',
+function IconCheck() {
+  return (
+    <SvgIcon>
+      <path d="M9 16.2l-3.5-3.5L4 14.2l5 5 11-11-1.5-1.5L9 16.2z" fill="currentColor" />
+    </SvgIcon>
+  )
 }
 
-function chip(color: string): React.CSSProperties {
-  return {
-    display: 'inline-flex',
-    alignItems: 'center',
-    height: 22,
-    padding: '0 10px',
-    borderRadius: 999,
-    background: color,
-    color: '#ffffff',
-    fontSize: 12,
-    fontWeight: 900,
-    textTransform: 'lowercase',
-  }
+function IconClose() {
+  return (
+    <SvgIcon>
+      <path
+        d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L12 13.41l-6.89 6.3-1.41-1.42L10.59 12 3.7 5.71 5.11 4.29 12 10.59l6.89-6.3 1.41 1.42z"
+        fill="currentColor"
+      />
+    </SvgIcon>
+  )
 }
 
-/**
- * Date helpers (display MM/DD/YYYY; store as YYYY-MM-DD)
- */
+function IconAdd() {
+  return (
+    <SvgIcon>
+      <path d="M19 13H13v6h-2v-6H5v-2h6V5h2v6h6v2z" fill="currentColor" />
+    </SvgIcon>
+  )
+}
+
+function IconEdit() {
+  return (
+    <SvgIcon>
+      <path
+        d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25z"
+        fill="currentColor"
+      />
+      <path
+        d="M20.71 7.04a1.003 1.003 0 0 0 0-1.42l-2.34-2.34a1.003 1.003 0 0 0-1.42 0l-1.83 1.83 3.75 3.75 1.84-1.82z"
+        fill="currentColor"
+      />
+    </SvgIcon>
+  )
+}
+
+function IconDelete() {
+  return (
+    <SvgIcon>
+      <path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6v12z" fill="currentColor" />
+      <path d="M15.5 4l-1-1h-5l-1 1H5v2h14V4z" fill="currentColor" />
+    </SvgIcon>
+  )
+}
+
+function IconLock() {
+  return (
+    <SvgIcon>
+      <path
+        d="M12 17a2 2 0 0 0 2-2v-2a2 2 0 0 0-4 0v2a2 2 0 0 0 2 2z"
+        fill="currentColor"
+      />
+      <path
+        d="M17 8h-1V6a4 4 0 0 0-8 0v2H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2zm-7-2a2 2 0 0 1 4 0v2h-4V6z"
+        fill="currentColor"
+      />
+    </SvgIcon>
+  )
+}
+
+function IconLockOpen() {
+  return (
+    <SvgIcon>
+      <path
+        d="M12 17a2 2 0 0 0 2-2v-2a2 2 0 0 0-4 0v2a2 2 0 0 0 2 2z"
+        fill="currentColor"
+      />
+      <path
+        d="M17 8h-7V6a2 2 0 0 1 3.41-1.41l1.42-1.42A4 4 0 0 0 8 6v2H7a2 2 0 0 0-2 2v10a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V10a2 2 0 0 0-2-2z"
+        fill="currentColor"
+      />
+    </SvgIcon>
+  )
+}
+
+function IconGroup() {
+  return (
+    <SvgIcon>
+      <path
+        d="M16 11c1.66 0 2.99-1.34 2.99-3S17.66 5 16 5s-3 1.34-3 3 1.34 3 3 3zm-8 0c1.66 0 2.99-1.34 2.99-3S9.66 5 8 5 5 6.34 5 8s1.34 3 3 3zm0 2c-2.33 0-7 1.17-7 3.5V21h14v-4.5C15 14.17 10.33 13 8 13zm8 0c-.29 0-.62.02-.97.05 1.16.84 1.97 1.97 1.97 3.45V21h6v-4.5c0-2.33-4.67-3.5-7-3.5z"
+        fill="currentColor"
+      />
+    </SvgIcon>
+  )
+}
+
+function IconPersonAdd() {
+  return (
+    <SvgIcon>
+      <path
+        d="M15 12c2.21 0 4-1.79 4-4S17.21 4 15 4s-4 1.79-4 4 1.79 4 4 4zm-9 0c1.66 0 3-1.34 3-3S7.66 6 6 6 3 7.34 3 9s1.34 3 3 3zm0 2c-2.33 0-6 1.17-6 3.5V21h7v-3.5c0-1.21.54-2.27 1.44-3.07C7.55 14.16 6.69 14 6 14zm9 0c-2.67 0-8 1.34-8 4v3h16v-3c0-2.66-5.33-4-8-4zm7-3v-2h-2V9h-2v2h-2v2h2v2h2v-2h2z"
+        fill="currentColor"
+      />
+    </SvgIcon>
+  )
+}
+
+function IconCalendarToday() {
+  return (
+    <SvgIcon>
+      <path
+        d="M19 4h-1V2h-2v2H8V2H6v2H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.11 0 2-.9 2-2V6c0-1.1-.89-2-2-2zm0 16H5V9h14v11zm0-13H5V6h14v1z"
+        fill="currentColor"
+      />
+    </SvgIcon>
+  )
+}
+
+/* ---------- Helpers ---------- */
 
 function todayYmd() {
   const d = new Date()
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`
 }
-
-function pad2(n: number) {
-  return String(n).padStart(2, '0')
+function pad(n: number) { return String(n).padStart(2, '0') }
+function toInclusiveEnd(e: string) {
+  const d = new Date(e); d.setDate(d.getDate() - 1); return d.toISOString().slice(0, 10)
 }
-
-function toInclusiveEnd(endExclusiveYmd: string) {
-  const d = ymdToDate(endExclusiveYmd)
-  d.setDate(d.getDate() - 1)
-  return formatYmd(d)
+function toExclusiveEnd(i: string) {
+  const d = new Date(i); d.setDate(d.getDate() + 1); return d.toISOString().slice(0, 10)
 }
-
-function toExclusiveEnd(inclusiveEndYmd: string) {
-  const d = ymdToDate(inclusiveEndYmd)
-  d.setDate(d.getDate() + 1)
-  return formatYmd(d)
-}
-
-function ymdToDate(ymd: string) {
-  const [y, m, d] = ymd.split('-').map(Number)
-  return new Date(y, m - 1, d)
-}
-
-function formatYmd(d: Date) {
-  return `${d.getFullYear()}-${pad2(d.getMonth() + 1)}-${pad2(d.getDate())}`
-}
-
 function formatDisplayDate(ymd: string) {
-  const [y, m, d] = ymd.split('-')
-  return `${m}/${d}/${y}`
+  const [y, m, d] = ymd.split('-'); return `${m}/${d}/${y}`
 }
 
-function formatDisplayDateTime(iso: string) {
-  // ISO timestamptz -> MM/DD/YYYY
-  const d = new Date(iso)
-  const y = d.getFullYear()
-  const m = pad2(d.getMonth() + 1)
-  const day = pad2(d.getDate())
-  return `${m}/${day}/${y}`
+function isTodayWithinBooking(startYmd: string, endExclusiveYmd: string) {
+  const today = todayYmd()
+  return startYmd <= today && today < endExclusiveYmd
 }
 
-function ensureBlockedPrefix(label: string) {
-  const l = label.trim()
-  if (!l) return l
-  return l.toLowerCase().startsWith('blocked') ? l : `Blocked: ${l}`
+function Modal({ title, children, onClose }: any) {
+  return (
+    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.3)' }}>
+      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', margin: '10% auto', padding: 20 }}>
+        <strong>{title}</strong>
+        {children}
+      </div>
+    </div>
+  )
 }
