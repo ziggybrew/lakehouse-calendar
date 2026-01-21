@@ -266,7 +266,17 @@ export default function Admin() {
               <div style={{ marginTop: 10, display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Button compact icon={<IconCheck />} label="Approve" onClick={() => approveRequest(r)} />
                 <div style={{ marginLeft: 'auto' }}>
-                  <Button compact icon={<IconClose />} label="Reject" variant="danger" onClick={() => rejectRequest(r)} />
+                  <Button
+                    compact
+                    icon={<IconClose />}
+                    label="Reject"
+                    variant="danger"
+                    onClick={() => {
+                      const ok = window.confirm(`Reject access request for ${r.first_name} ${r.last_name}?`)
+                      if (!ok) return
+                      rejectRequest(r)
+                    }}
+                  />
                 </div>
               </div>
             </Card>
@@ -284,7 +294,13 @@ export default function Admin() {
                 compact
                 icon={u.isActive ? <IconLock /> : <IconLockOpen />}
                 label={u.isActive ? 'Deactivate' : 'Activate'}
-                onClick={() => toggleUserActive(u.id, !u.isActive)}
+                onClick={() => {
+                  if (u.isActive) {
+                    const ok = window.confirm(`Deactivate ${u.firstName || ''} ${u.lastName || ''}`.trim() + '?')
+                    if (!ok) return
+                  }
+                  toggleUserActive(u.id, !u.isActive)
+                }}
               />
             </Card>
           ))}
@@ -325,7 +341,17 @@ export default function Admin() {
               <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                 <Button compact icon={<IconEdit />} label="Edit" onClick={() => openEditBooking(b)} />
                 <div style={{ marginLeft: 'auto' }}>
-                  <Button compact icon={<IconDelete />} label="Remove" variant="danger" onClick={() => deleteBooking(b.id)} />
+                  <Button
+                    compact
+                    icon={<IconDelete />}
+                    label="Remove"
+                    variant="danger"
+                    onClick={() => {
+                      const ok = window.confirm(`Remove this booking for ${b.label}?`)
+                      if (!ok) return
+                      deleteBooking(b.id)
+                    }}
+                  />
                 </div>
               </div>
             </Card>
