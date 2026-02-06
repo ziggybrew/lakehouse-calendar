@@ -139,6 +139,22 @@ export default function Login() {
     }
   }
 
+  function enableDemoMode() {
+    try {
+      window.localStorage.setItem('lakehouse_demo', '1')
+    } catch {
+      // ignore
+    }
+  }
+
+  function disableDemoMode() {
+    try {
+      window.localStorage.removeItem('lakehouse_demo')
+    } catch {
+      // ignore
+    }
+  }
+
   function closeLogin() {
     setErrorMsg(null)
     setIsSending(false)
@@ -195,6 +211,7 @@ export default function Login() {
       }
 
       if (data.session) {
+        disableDemoMode()
         closeLogin()
         navigate('/calendar')
       } else {
@@ -685,6 +702,7 @@ export default function Login() {
               <button
                 type="button"
                 onClick={() => {
+                  enableDemoMode()
                   closeLogin()
                   navigate('/calendar?mode=demo')
                 }}
@@ -698,7 +716,28 @@ export default function Login() {
                   textDecoration: 'underline',
                 }}
               >
-                View demo
+                <span
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
+                  }}
+                >
+                  <svg
+                    width="14"
+                    height="14"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    aria-hidden="true"
+                    style={{ display: 'block' }}
+                  >
+                    <path
+                      d="M8 5v14l11-7L8 5z"
+                      fill="currentColor"
+                    />
+                  </svg>
+                  <span>View demo</span>
+                </span>
               </button>
 
               {authMode === 'login' ? (
