@@ -20,7 +20,7 @@ function isDemoMode() {
 export default function UserProfile() {
   const navigate = useNavigate()
   const [session, setSession] = useState<Session | null>(null)
-  const [setProfile] = useState<ProfileRow | null>(null)
+  const [, setProfile] = useState<ProfileRow | null>(null)
 
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
