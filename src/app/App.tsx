@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
 import Login from '../pages/Login'
+import UserProfile from '../pages/UserProfile'
 import Calendar from '../pages/Calendar'
 import Admin from '../pages/Admin'
 import PendingApproval from '../pages/PendingApproval'
@@ -96,6 +97,7 @@ export default function App() {
         }
       >
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/profile" element={<UserProfile />} />
         <Route
           path="/admin"
           element={
