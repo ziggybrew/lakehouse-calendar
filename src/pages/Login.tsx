@@ -229,6 +229,8 @@ export default function Login() {
         width: '100%',
         position: 'relative',
         overflow: 'hidden',
+        WebkitTextSizeAdjust: '100%',
+        textSizeAdjust: '100%',
       }}
     >
         {/* Title */}
@@ -327,7 +329,7 @@ export default function Login() {
                 gap: 12,
               }}
             >
-              <div style={{ fontSize: 16, fontWeight: 800, color: '#2f6f73' }}>
+              <div style={{ fontSize: 18, fontWeight: 900, color: '#2f6f73' }}>
                 {authMode === 'login' ? 'Sign in' : 'Register'}
               </div>
 
@@ -377,7 +379,7 @@ export default function Login() {
                   border: '1px solid rgba(154, 79, 79, 0.35)',
                   background: 'rgba(154, 79, 79, 0.08)',
                   color: '#9a4f4f',
-                  fontSize: 13,
+                  fontSize: 16,
                   fontWeight: 700,
                 }}
               >
@@ -388,12 +390,12 @@ export default function Login() {
             {authMode === 'login' ? (
               step === 'email' ? (
                 <form onSubmit={onSubmitEmail} style={{ marginTop: 14, display: 'grid', gap: 12 }}>
-                  <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
+                  <div style={{ fontSize: 16, color: '#1f2933', opacity: 0.85 }}>
                     Enter the email address associated with an approved account to receive a one-time code.
                   </div>
 
                   <label style={{ display: 'grid', gap: 6 }}>
-                    <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>Email</span>
+                    <span style={{ fontSize: 16, color: '#1f2933', opacity: 0.8 }}>Email</span>
                     <input
                       type="email"
                       value={email}
@@ -405,7 +407,7 @@ export default function Login() {
                         borderRadius: 12,
                         border: '1px solid #d6e6e3',
                         padding: '0 12px',
-                        fontSize: 14,
+                        fontSize: 16,
                         outline: 'none',
                       }}
                     />
@@ -429,12 +431,12 @@ export default function Login() {
                 </form>
               ) : (
                 <form onSubmit={onSubmitCode} style={{ marginTop: 14, display: 'grid', gap: 12 }}>
-                  <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
+                  <div style={{ fontSize: 16, color: '#1f2933', opacity: 0.85 }}>
                     Enter the code sent to <strong>{email.trim()}</strong>.
                   </div>
 
                   <label style={{ display: 'grid', gap: 6 }}>
-                    <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>One-time code</span>
+                    <span style={{ fontSize: 16, color: '#1f2933', opacity: 0.8 }}>One-time code</span>
                     <input
                       inputMode="numeric"
                       autoComplete="one-time-code"
@@ -446,9 +448,10 @@ export default function Login() {
                         borderRadius: 12,
                         border: '1px solid #d6e6e3',
                         padding: '0 12px',
-                        fontSize: 14,
+                        fontSize: 16,
                         outline: 'none',
                         letterSpacing: 2,
+                        lineHeight: '20px',
                       }}
                     />
                   </label>
@@ -493,7 +496,7 @@ export default function Login() {
                     </button>
                   </div>
 
-                  <div style={{ marginTop: 2, fontSize: 12, opacity: 0.75 }}>
+                  <div style={{ marginTop: 2, fontSize: 16, opacity: 0.75 }}>
                     Code not received? Use “Change email” and click “Send code” again.
                   </div>
                 </form>
@@ -502,12 +505,12 @@ export default function Login() {
               <div style={{ marginTop: 14 }}>
                 {!regSubmitted ? (
                   <form onSubmit={onSubmitRegister} style={{ display: 'grid', gap: 12 }}>
-                    <div style={{ fontSize: 13, color: '#1f2933', opacity: 0.85 }}>
+                    <div style={{ fontSize: 16, color: '#1f2933', opacity: 0.85 }}>
                       Registration requests require admin approval before sign-in is allowed.
                     </div>
 
                     <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>Email</span>
+                      <span style={{ fontSize: 16, color: '#1f2933', opacity: 0.8 }}>Email</span>
                       <input
                         type="email"
                         value={regEmail}
@@ -519,7 +522,7 @@ export default function Login() {
                           borderRadius: 12,
                           border: '1px solid #d6e6e3',
                           padding: '0 12px',
-                          fontSize: 14,
+                          fontSize: 16,
                           outline: 'none',
                         }}
                       />
@@ -536,7 +539,7 @@ export default function Login() {
                       }}
                     >
                       <label style={{ display: 'grid', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>First name</span>
+                        <span style={{ fontSize: 16, color: '#1f2933', opacity: 0.8 }}>First name</span>
                         <input
                           type="text"
                           value={regFirstName}
@@ -548,7 +551,7 @@ export default function Login() {
                             borderRadius: 12,
                             border: '1px solid #d6e6e3',
                             padding: '0 12px',
-                            fontSize: 14,
+                            fontSize: 16,
                             outline: 'none',
                             width: '100%',
                             boxSizing: 'border-box',
@@ -557,7 +560,7 @@ export default function Login() {
                       </label>
 
                       <label style={{ display: 'grid', gap: 6 }}>
-                        <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>Last name</span>
+                        <span style={{ fontSize: 16, color: '#1f2933', opacity: 0.8 }}>Last name</span>
                         <input
                           type="text"
                           value={regLastName}
@@ -569,7 +572,7 @@ export default function Login() {
                             borderRadius: 12,
                             border: '1px solid #d6e6e3',
                             padding: '0 12px',
-                            fontSize: 14,
+                            fontSize: 16,
                             outline: 'none',
                             width: '100%',
                             boxSizing: 'border-box',
@@ -579,7 +582,7 @@ export default function Login() {
                     </div>
 
                     <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>
+                      <span style={{ fontSize: 16, color: '#1f2933', opacity: 0.8 }}>
                         Phone (optional)
                       </span>
                       <input
@@ -593,14 +596,14 @@ export default function Login() {
                           borderRadius: 12,
                           border: '1px solid #d6e6e3',
                           padding: '0 12px',
-                          fontSize: 14,
+                          fontSize: 16,
                           outline: 'none',
                         }}
                       />
                     </label>
 
                     <label style={{ display: 'grid', gap: 6 }}>
-                      <span style={{ fontSize: 12, color: '#1f2933', opacity: 0.8 }}>
+                      <span style={{ fontSize: 16, color: '#1f2933', opacity: 0.8 }}>
                         Invite code (optional)
                       </span>
                       <input
@@ -614,7 +617,7 @@ export default function Login() {
                           borderRadius: 12,
                           border: '1px solid #d6e6e3',
                           padding: '0 12px',
-                          fontSize: 14,
+                          fontSize: 16,
                           outline: 'none',
                         }}
                       />
@@ -657,10 +660,10 @@ export default function Login() {
                   </form>
                 ) : (
                   <div style={{ display: 'grid', gap: 10 }}>
-                    <div style={{ fontSize: 14, fontWeight: 900, color: '#2f6f73' }}>
+                    <div style={{ fontSize: 18, fontWeight: 900, color: '#2f6f73' }}>
                       Request submitted
                     </div>
-                    <div style={{ fontSize: 13, opacity: 0.85 }}>
+                    <div style={{ fontSize: 16, opacity: 0.85 }}>
                       Access requires admin approval. Sign-in will work after the account is activated.
                     </div>
                     <button
@@ -696,7 +699,7 @@ export default function Login() {
                 justifyContent: 'space-between',
                 gap: 10,
                 flexWrap: 'wrap',
-                fontSize: 12,
+                fontSize: 16,
               }}
             >
               <button
