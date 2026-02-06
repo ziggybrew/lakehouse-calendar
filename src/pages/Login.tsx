@@ -1,10 +1,27 @@
 // src/pages/Login.tsx
-import { useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 
 export default function Login() {
   const navigate = useNavigate()
+
+  const [isWide, setIsWide] = useState(false)
+
+  useEffect(() => {
+    const mq = window.matchMedia('(min-width: 641px)')
+    const update = () => setIsWide(mq.matches)
+    update()
+
+    if (typeof mq.addEventListener === 'function') {
+      mq.addEventListener('change', update)
+      return () => mq.removeEventListener('change', update)
+    }
+
+    // Safari fallback
+    mq.addListener(update)
+    return () => mq.removeListener(update)
+  }, [])
 
   const [showLogin, setShowLogin] = useState(false)
   const [email, setEmail] = useState('')
@@ -200,19 +217,20 @@ export default function Login() {
         {/* Title */}
         <div
         style={{
-            position: 'absolute',
-            top: '7%',
-            left: '10%',
-            color: '#ffffff',
-            fontSize: 44,
-            fontWeight: 400,
-            letterSpacing: 0.5,
-            fontFamily:
-            '"Allura", "Dancing Script", "Pacifico", "Segoe Script", cursive',
-            textShadow: '0 2px 6px rgba(0, 0, 0, 0.45)',
-            transform: 'rotate(-1deg)',
-            userSelect: 'none',
-            pointerEvents: 'none',
+          position: 'absolute',
+          top: isWide ? '6%' : '7%',
+          left: isWide ? '50%' : '10%',
+          color: '#ffffff',
+          fontSize: isWide ? 56 : 44,
+          fontWeight: 400,
+          letterSpacing: 0.5,
+          fontFamily: '"Allura", "Dancing Script", "Pacifico", "Segoe Script", cursive',
+          textShadow: '0 2px 6px rgba(0, 0, 0, 0.45)',
+          transform: isWide ? 'translateX(-50%) rotate(-1deg)' : 'rotate(-1deg)',
+          userSelect: 'none',
+          pointerEvents: 'none',
+          textAlign: isWide ? 'center' : 'left',
+          whiteSpace: 'nowrap',
         }}
         >
         Lakehouse Calendar
@@ -221,16 +239,17 @@ export default function Login() {
       <div
         style={{
           position: 'absolute',
-          left: '15%',
-          bottom: '9%',
-          width: 'min(320px, 70vw)',
+          left: isWide ? '50%' : '15%',
+          bottom: isWide ? '10%' : '9%',
+          transform: isWide ? 'translateX(-50%)' : undefined,
+          width: isWide ? 'min(520px, 60vw)' : 'min(320px, 70vw)',
         }}
       >
         <div
           style={{
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
-            gap: 10,
+            gap: isWide ? 14 : 10,
           }}
         >
           <button
