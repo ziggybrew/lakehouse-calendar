@@ -154,6 +154,7 @@ export default function TopNav() {
             </div>
 
             <nav style={styles.nav}>
+              <NavItem to="/dashboard" label="Dashboard" icon={<IconHome />} />
               <NavItem to="/profile" label="Profile" icon={<IconUser />} />
               <NavItem to="/calendar" label="Calendar" icon={<IconCalendar />} />
               <NavItem to="/admin" label="Admin" icon={<IconShield />} />
@@ -211,6 +212,19 @@ function getInitials(name: string) {
   const first = parts[0][0] || '?'
   const last = (parts.length > 1 ? parts[parts.length - 1][0] : '') || ''
   return (first + last).toUpperCase().slice(0, 2)
+}
+
+function IconHome() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1v-9Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinejoin="round"
+      />
+    </svg>
+  )
 }
 
 function IconCalendar() {

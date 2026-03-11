@@ -213,7 +213,7 @@ export default function Login() {
       if (data.session) {
         disableDemoMode()
         closeLogin()
-        navigate('/calendar')
+        navigate('/dashboard')
       } else {
         setErrorMsg('Sign-in could not be completed. Request a new code and try again.')
       }
@@ -707,7 +707,7 @@ export default function Login() {
                 onClick={() => {
                   enableDemoMode()
                   closeLogin()
-                  navigate('/calendar?mode=demo')
+                  navigate('/dashboard?mode=demo')
                 }}
                 style={{
                   border: 'none',

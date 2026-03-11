@@ -1,5 +1,6 @@
 // src/pages/Calendar.tsx
 import { useEffect, useMemo, useState } from 'react'
+import { useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import FullCalendar from '@fullcalendar/react'
 import dayGridPlugin from '@fullcalendar/daygrid'
@@ -47,6 +48,8 @@ type ProfileOption = {
 }
 
 export default function Calendar() {
+  const navigate = useNavigate()
+  const location = useLocation()
   const [bookings, setBookings] = useState<Booking[]>([])
   const [bookingsLoading, setBookingsLoading] = useState(false)
   const [bookingsError, setBookingsError] = useState<string | null>(null)
@@ -141,6 +144,13 @@ export default function Calendar() {
       setCurrentUserId(data.user?.id ?? null)
     })
   }, [])
+
+  useEffect(() => {
+    if ((location.state as { openBooking?: boolean } | null)?.openBooking) {
+      openBookingModal()
+      navigate(location.pathname, { replace: true, state: null })
+    }
+  }, [location.pathname, location.state, navigate])
 
   const events = bookings
 

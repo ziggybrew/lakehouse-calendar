@@ -7,6 +7,7 @@ import UserProfile from '../pages/UserProfile'
 import Calendar from '../pages/Calendar'
 import Admin from '../pages/Admin'
 import PendingApproval from '../pages/PendingApproval'
+import Dashboard from '../pages/Dashboard'
 import ProtectedRoute from '../components/ProtectedRoute'
 import AppShell from '../components/AppShell'
 
@@ -77,7 +78,7 @@ export default function App() {
 
   return (
     <Routes>
-      <Route path="/" element={<Navigate to={isAuthed ? '/calendar' : '/login'} replace />} />
+      <Route path="/" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
       <Route path="/login" element={<Login />} />
 
       <Route
@@ -96,6 +97,7 @@ export default function App() {
           </ProtectedRoute>
         }
       >
+        <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/profile" element={<UserProfile />} />
         <Route
@@ -113,7 +115,7 @@ export default function App() {
         />
       </Route>
 
-      <Route path="*" element={<Navigate to={isAuthed ? '/calendar' : '/login'} replace />} />
+      <Route path="*" element={<Navigate to={isAuthed ? '/dashboard' : '/login'} replace />} />
     </Routes>
   )
 }
