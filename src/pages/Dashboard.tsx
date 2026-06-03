@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import type { Session } from '@supabase/supabase-js'
 import { supabase } from '../lib/supabaseClient'
+import { DEMO_USER_ID, getDemoProfile, isDemoMode, listDemoBookingsForUser } from '../lib/demoMode'
 
 type ProfileRow = {
   first_name?: string | null
@@ -38,6 +39,23 @@ export default function Dashboard() {
     async function load() {
       setLoading(true)
       setErrorMsg(null)
+
+      if (isDemoMode()) {
+        const demoProfile = getDemoProfile()
+        setSession({
+          user: {
+            id: DEMO_USER_ID,
+            email: demoProfile.email,
+          },
+        } as Session)
+        setProfile({
+          first_name: demoProfile.first_name,
+          last_name: demoProfile.last_name,
+        })
+        setBookings(listDemoBookingsForUser().filter((booking) => booking.end_date >= todayYmd()))
+        setLoading(false)
+        return
+      }
 
       const { data } = await supabase.auth.getSession()
       if (!alive) return

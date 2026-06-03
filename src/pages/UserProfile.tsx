@@ -2,19 +2,12 @@ import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import type { Session } from '@supabase/supabase-js'
+import { DEMO_USER_ID, getDemoProfile, isDemoMode, updateDemoProfile } from '../lib/demoMode'
 
 type ProfileRow = {
   first_name?: string | null
   last_name?: string | null
   avatar_url?: string | null
-}
-
-function isDemoMode() {
-  try {
-    return window.localStorage.getItem('lakehouse_demo') === '1'
-  } catch {
-    return false
-  }
 }
 
 export default function UserProfile() {
@@ -48,6 +41,22 @@ export default function UserProfile() {
     async function init() {
       setIsLoading(true)
       setErrorMsg(null)
+
+      if (isDemoMode()) {
+        const demoProfile = getDemoProfile()
+        setSession({
+          user: {
+            id: DEMO_USER_ID,
+            email: demoProfile.email,
+          },
+        } as Session)
+        setProfile(demoProfile)
+        setFirstName(String(demoProfile.first_name ?? ''))
+        setLastName(String(demoProfile.last_name ?? ''))
+        setAvatarUrl(demoProfile.avatar_url ?? null)
+        setIsLoading(false)
+        return
+      }
 
       const { data } = await supabase.auth.getSession()
       if (!alive) return
@@ -92,7 +101,11 @@ export default function UserProfile() {
     setSuccessMsg(null)
 
     if (demo) {
-      setErrorMsg('Profile editing is disabled in demo mode.')
+      updateDemoProfile(DEMO_USER_ID, {
+        first_name: firstName.trim() || null,
+        last_name: lastName.trim() || null,
+      })
+      setSuccessMsg('Profile updated for this demo session.')
       return
     }
 
@@ -129,7 +142,10 @@ export default function UserProfile() {
     setSuccessMsg(null)
 
     if (demo) {
-      setErrorMsg('Avatar uploads are disabled in demo mode.')
+      const previewUrl = URL.createObjectURL(file)
+      updateDemoProfile(DEMO_USER_ID, { avatar_url: previewUrl })
+      setAvatarUrl(previewUrl)
+      setSuccessMsg('Avatar updated for this demo session.')
       return
     }
 
@@ -255,10 +271,10 @@ export default function UserProfile() {
                     if (f) onPickAvatar(f)
                     e.currentTarget.value = ''
                   }}
-                  disabled={demo || isUploading}
+                  disabled={isUploading}
                   style={{ display: 'none' }}
                 />
-                <span style={demo ? styles.uploadBtnDisabled : styles.uploadBtn}>
+                <span style={isUploading ? styles.uploadBtnDisabled : styles.uploadBtn}>
                   {isUploading ? 'Uploading…' : 'Upload photo'}
                 </span>
               </label>
@@ -275,7 +291,7 @@ export default function UserProfile() {
               <input
                 value={firstName}
                 onChange={(e) => setFirstName(e.target.value)}
-                disabled={demo || isSaving}
+                disabled={isSaving}
                 style={styles.input}
                 autoComplete="given-name"
               />
@@ -286,7 +302,7 @@ export default function UserProfile() {
               <input
                 value={lastName}
                 onChange={(e) => setLastName(e.target.value)}
-                disabled={demo || isSaving}
+                disabled={isSaving}
                 style={styles.input}
                 autoComplete="family-name"
               />
@@ -294,7 +310,7 @@ export default function UserProfile() {
           </div>
 
           <div style={{ marginTop: 14, display: 'flex', gap: 10, justifyContent: 'flex-end' }}>
-            <button type="submit" disabled={demo || isSaving} style={demo ? styles.primaryBtnDisabled : styles.primaryBtn}>
+            <button type="submit" disabled={isSaving} style={isSaving ? styles.primaryBtnDisabled : styles.primaryBtn}>
               {isSaving ? 'Saving…' : 'Save changes'}
             </button>
           </div>

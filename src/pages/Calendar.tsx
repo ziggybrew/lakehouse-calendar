@@ -7,6 +7,13 @@ import dayGridPlugin from '@fullcalendar/daygrid'
 import interactionPlugin from '@fullcalendar/interaction'
 import type { DateClickArg } from '@fullcalendar/interaction'
 import type { EventClickArg } from '@fullcalendar/core'
+import {
+  DEMO_USER_ID,
+  isDemoMode,
+  listDemoBookings,
+  listDemoProfiles,
+  upsertDemoBooking,
+} from '../lib/demoMode'
 
 type Booking = {
   id: string
@@ -66,6 +73,11 @@ export default function Calendar() {
     setBookingsLoading(true)
     setBookingsError(null)
     try {
+      if (isDemoMode()) {
+        setBookings(expandBookingRows(listDemoBookings()))
+        return
+      }
+
       const { data, error } = await supabase
         .from('bookings')
         .select('id,label,start_date,end_date,notes,is_blocked')
@@ -78,39 +90,7 @@ export default function Calendar() {
       }
 
       const rows = (data || []) as BookingRow[]
-
-      const expanded: Booking[] = []
-      for (const r of rows) {
-        const label = r.label
-        const initials = getTwoLetterInitials(label)
-        const baseColor = r.is_blocked ? '#9a4f4f' : colorForLabel(label)
-
-        // Expand into one event per day so avatars show on every day in month view.
-        // end_date is stored end-exclusive.
-        let cur = r.start_date
-        while (cur < r.end_date) {
-          const next = formatYmd(addDays(ymdToDate(cur), 1))
-
-          expanded.push({
-            id: `${r.id}-${cur}`,
-            title: r.is_blocked ? `Blocked: ${label}` : label,
-            start: cur,
-            end: next,
-            notes: r.notes || undefined,
-            extendedProps: {
-              label,
-              initials,
-              isBlocked: r.is_blocked,
-              color: baseColor,
-              bookingId: r.id,
-            },
-          })
-
-          cur = next
-        }
-      }
-
-      setBookings(expanded)
+      setBookings(expandBookingRows(rows))
     } finally {
       setBookingsLoading(false)
     }
@@ -119,6 +99,11 @@ export default function Calendar() {
   async function loadProfiles() {
     setProfilesLoading(true)
     try {
+      if (isDemoMode()) {
+        setProfileOptions(listDemoProfiles().filter((profile) => profile.is_active))
+        return
+      }
+
       const { data, error } = await supabase
         .from('profiles')
         .select('id,email,first_name,last_name,is_active')
@@ -139,6 +124,11 @@ export default function Calendar() {
   useEffect(() => {
     loadBookings()
     loadProfiles()
+
+    if (isDemoMode()) {
+      setCurrentUserId(DEMO_USER_ID)
+      return
+    }
 
     supabase.auth.getUser().then(({ data }) => {
       setCurrentUserId(data.user?.id ?? null)
@@ -169,10 +159,11 @@ export default function Calendar() {
     setSubmitError(null)
     const today = new Date()
     const start = formatYmd(today)
+    const initialUserId = isDemoMode() ? DEMO_USER_ID : currentUserId
     setDraft({
       start,
       end: '',
-      userIds: currentUserId ? [currentUserId] : [],
+      userIds: initialUserId ? [initialUserId] : [],
       notes: '',
     })
     setPeoplePickerOpen(false)
@@ -237,6 +228,20 @@ export default function Calendar() {
     setSubmitError(null)
 
     try {
+      if (isDemoMode()) {
+        upsertDemoBooking({
+          label,
+          start_date: draft.start,
+          end_date: draft.end,
+          notes: (draft.notes || '').trim() ? (draft.notes || '').trim() : null,
+          is_blocked: false,
+          created_by: DEMO_USER_ID,
+        })
+        closeBookingModal()
+        await loadBookings()
+        return
+      }
+
       const { data: userRes, error: userErr } = await supabase.auth.getUser()
       if (userErr || !userRes?.user?.id) {
         setSubmitError('Sign-in is required to book dates. Please sign in again.')
@@ -835,6 +840,42 @@ function Modal(props: {
 function formatDisplayDate(ymd: string) {
   const [y, m, d] = ymd.split('-')
   return `${m}/${d}/${y}`
+}
+
+function expandBookingRows(rows: BookingRow[]) {
+  const expanded: Booking[] = []
+
+  for (const r of rows) {
+    const label = r.label
+    const initials = getTwoLetterInitials(label)
+    const baseColor = r.is_blocked ? '#9a4f4f' : colorForLabel(label)
+
+    // Expand into one event per day so avatars show on every day in month view.
+    // end_date is stored end-exclusive.
+    let cur = r.start_date
+    while (cur < r.end_date) {
+      const next = formatYmd(addDays(ymdToDate(cur), 1))
+
+      expanded.push({
+        id: `${r.id}-${cur}`,
+        title: r.is_blocked ? `Blocked: ${label}` : label,
+        start: cur,
+        end: next,
+        notes: r.notes || undefined,
+        extendedProps: {
+          label,
+          initials,
+          isBlocked: r.is_blocked,
+          color: baseColor,
+          bookingId: r.id,
+        },
+      })
+
+      cur = next
+    }
+  }
+
+  return expanded
 }
 
 function isYmdAfter(a: string, b: string) {

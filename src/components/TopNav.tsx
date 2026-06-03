@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { NavLink, useLocation, useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import type { Session } from '@supabase/supabase-js'
+import { endDemoSession, getDemoProfile, isDemoMode } from '../lib/demoMode'
 
 type UserInfo = {
   displayName: string
@@ -22,6 +23,12 @@ export default function TopNav() {
 
   async function handleLogout() {
     setOpen(false)
+    if (isDemoMode()) {
+      endDemoSession()
+      navigate('/login')
+      return
+    }
+
     const { error } = await supabase.auth.signOut()
     if (error) {
       // Keep this simple for now; replace with toast UI later.
@@ -62,6 +69,21 @@ export default function TopNav() {
   }, [session])
 
   const user: UserInfo = useMemo(() => {
+    if (isDemoMode()) {
+      const demoProfile = getDemoProfile()
+      const firstName = profile?.first_name ?? demoProfile.first_name
+      const lastName = profile?.last_name ?? demoProfile.last_name
+      const name = [firstName, lastName].filter(Boolean).join(' ').trim()
+
+      return {
+        displayName: name || 'Demo User',
+        firstName,
+        lastName,
+        isDemo: true,
+        avatarUrl: profile?.avatar_url ?? demoProfile.avatar_url,
+      }
+    }
+
     if (!session?.user) {
       return {
         displayName: 'Guest',

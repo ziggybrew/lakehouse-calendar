@@ -1,5 +1,16 @@
 import { useEffect, useState } from 'react'
 import { supabase } from '../lib/supabaseClient'
+import {
+  DEMO_USER_ID,
+  deleteDemoBooking,
+  isDemoMode,
+  listDemoAccessRequests,
+  listDemoBookings,
+  listDemoProfiles,
+  updateDemoAccessRequest,
+  updateDemoProfile,
+  upsertDemoBooking,
+} from '../lib/demoMode'
 
 type AdminUser = {
   id: string
@@ -74,6 +85,12 @@ export default function Admin() {
   async function loadAccessRequests() {
     setAccessLoading(true)
     setAccessError(null)
+    if (isDemoMode()) {
+      setAccessRequests(listDemoAccessRequests())
+      setAccessLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from('access_requests')
       .select('*')
@@ -87,6 +104,20 @@ export default function Admin() {
   async function loadUsers() {
     setUsersLoading(true)
     setUsersError(null)
+    if (isDemoMode()) {
+      const mapped = listDemoProfiles().map((r) => ({
+        id: r.id,
+        email: r.email,
+        firstName: r.first_name ?? undefined,
+        lastName: r.last_name ?? undefined,
+        role: r.role,
+        isActive: r.is_active,
+      }))
+      setUsers(sortAdminUsers(mapped))
+      setUsersLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from('profiles')
       .select('id,email,first_name,last_name,role,is_active')
@@ -101,29 +132,29 @@ export default function Admin() {
       isActive: r.is_active,
     }))
 
-    mapped.sort((a, b) => {
-      const aFirst = (a.firstName || '').trim().toLowerCase()
-      const bFirst = (b.firstName || '').trim().toLowerCase()
-      if (aFirst && bFirst && aFirst !== bFirst) return aFirst.localeCompare(bFirst)
-      if (aFirst && !bFirst) return -1
-      if (!aFirst && bFirst) return 1
-
-      const aLast = (a.lastName || '').trim().toLowerCase()
-      const bLast = (b.lastName || '').trim().toLowerCase()
-      if (aLast && bLast && aLast !== bLast) return aLast.localeCompare(bLast)
-      if (aLast && !bLast) return -1
-      if (!aLast && bLast) return 1
-
-      return (a.email || '').toLowerCase().localeCompare((b.email || '').toLowerCase())
-    })
-
-    setUsers(mapped)
+    setUsers(sortAdminUsers(mapped))
     setUsersLoading(false)
   }
 
   async function loadBookings() {
     setBookingsLoading(true)
     setBookingsError(null)
+    if (isDemoMode()) {
+      setBookings(
+        listDemoBookings().map((b) => ({
+          id: b.id,
+          label: b.label,
+          start: b.start_date,
+          end: b.end_date,
+          notes: b.notes ?? undefined,
+          createdBy: b.created_by,
+          isBlocked: b.is_blocked,
+        }))
+      )
+      setBookingsLoading(false)
+      return
+    }
+
     const { data, error } = await supabase
       .from('bookings')
       .select('*')
@@ -145,17 +176,35 @@ export default function Admin() {
   }
 
   async function approveRequest(r: AccessRequest) {
+    if (isDemoMode()) {
+      updateDemoAccessRequest(r.id, 'approved')
+      loadAccessRequests()
+      return
+    }
+
     await supabase.from('access_requests').update({ status: 'approved' }).eq('id', r.id)
     await supabase.from('profiles').update({ is_active: true }).eq('email', r.email)
     loadAccessRequests()
   }
 
   async function rejectRequest(r: AccessRequest) {
+    if (isDemoMode()) {
+      updateDemoAccessRequest(r.id, 'rejected')
+      loadAccessRequests()
+      return
+    }
+
     await supabase.from('access_requests').update({ status: 'rejected' }).eq('id', r.id)
     loadAccessRequests()
   }
 
   async function toggleUserActive(id: string, next: boolean) {
+    if (isDemoMode()) {
+      updateDemoProfile(id, { is_active: next })
+      loadUsers()
+      return
+    }
+
     await supabase.from('profiles').update({ is_active: next }).eq('id', id)
     loadUsers()
   }
@@ -193,6 +242,17 @@ export default function Admin() {
       is_blocked: draft.isBlocked,
     }
 
+    if (isDemoMode()) {
+      upsertDemoBooking({
+        id: editingId ?? undefined,
+        ...payload,
+        created_by: DEMO_USER_ID,
+      })
+      setDraftOpen(false)
+      loadBookings()
+      return
+    }
+
     if (editingId) {
       await supabase.from('bookings').update(payload).eq('id', editingId)
     } else {
@@ -205,6 +265,12 @@ export default function Admin() {
   }
 
   async function deleteBooking(id: string) {
+    if (isDemoMode()) {
+      deleteDemoBooking(id)
+      loadBookings()
+      return
+    }
+
     await supabase.from('bookings').delete().eq('id', id)
     loadBookings()
   }
@@ -411,6 +477,24 @@ export default function Admin() {
 }
 
 /* ---------- Shared UI ---------- */
+
+function sortAdminUsers(users: AdminUser[]) {
+  return [...users].sort((a, b) => {
+    const aFirst = (a.firstName || '').trim().toLowerCase()
+    const bFirst = (b.firstName || '').trim().toLowerCase()
+    if (aFirst && bFirst && aFirst !== bFirst) return aFirst.localeCompare(bFirst)
+    if (aFirst && !bFirst) return -1
+    if (!aFirst && bFirst) return 1
+
+    const aLast = (a.lastName || '').trim().toLowerCase()
+    const bLast = (b.lastName || '').trim().toLowerCase()
+    if (aLast && bLast && aLast !== bLast) return aLast.localeCompare(bLast)
+    if (aLast && !bLast) return -1
+    if (!aLast && bLast) return 1
+
+    return (a.email || '').toLowerCase().localeCompare((b.email || '').toLowerCase())
+  })
+}
 
 function Section({ title, children, right }: any) {
   return (

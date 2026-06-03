@@ -10,6 +10,7 @@ import PendingApproval from '../pages/PendingApproval'
 import Dashboard from '../pages/Dashboard'
 import ProtectedRoute from '../components/ProtectedRoute'
 import AppShell from '../components/AppShell'
+import { isDemoMode } from '../lib/demoMode'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -71,10 +72,13 @@ export default function App() {
     }
   }, [session])
 
-  const isAuthed = !!session
+  const demo = isDemoMode()
+  const isAuthed = !!session || demo
+  const activeForRoutes = demo ? true : isActive ?? false
+  const adminForRoutes = demo ? true : isAdmin ?? false
 
   if (!authReady) return null
-  if (isAuthed && !profileReady) return null
+  if (!!session && !profileReady) return null
 
   return (
     <Routes>
@@ -92,7 +96,7 @@ export default function App() {
 
       <Route
         element={
-          <ProtectedRoute isAuthed={isAuthed} isActive={isActive ?? false}>
+          <ProtectedRoute isAuthed={isAuthed} isActive={activeForRoutes}>
             <AppShell />
           </ProtectedRoute>
         }
@@ -105,9 +109,9 @@ export default function App() {
           element={
             <ProtectedRoute
               isAuthed={isAuthed}
-              isActive={isActive ?? false}
+              isActive={activeForRoutes}
               requireAdmin
-              isAdmin={isAdmin ?? false}
+              isAdmin={adminForRoutes}
             >
               <Admin />
             </ProtectedRoute>

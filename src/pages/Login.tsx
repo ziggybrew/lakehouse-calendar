@@ -2,6 +2,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
+import { endDemoSession, startDemoSession } from '../lib/demoMode'
 
 export default function Login() {
   const navigate = useNavigate()
@@ -141,15 +142,16 @@ export default function Login() {
 
   function enableDemoMode() {
     try {
-      window.localStorage.setItem('lakehouse_demo', '1')
+      startDemoSession()
     } catch {
       // ignore
     }
+    navigate('/dashboard')
   }
 
   function disableDemoMode() {
     try {
-      window.localStorage.removeItem('lakehouse_demo')
+      endDemoSession()
     } catch {
       // ignore
     }
@@ -707,7 +709,6 @@ export default function Login() {
                 onClick={() => {
                   enableDemoMode()
                   closeLogin()
-                  navigate('/dashboard?mode=demo')
                 }}
                 style={{
                   border: 'none',
