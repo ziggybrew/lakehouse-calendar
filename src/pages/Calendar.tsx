@@ -303,6 +303,8 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
 
   const inputStyle: React.CSSProperties = {
     width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
     padding: '12px 12px',
     borderRadius: 12,
     border: '1px solid rgba(47, 111, 115, 0.25)',
@@ -312,6 +314,7 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
     fontSize: 14,
     lineHeight: 1.2,
     boxSizing: 'border-box',
+    textAlign: 'left',
   }
 
   const dayBookings = useMemo(() => {
@@ -447,6 +450,26 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
           .fc .fc-daygrid-event .fc-event-main-frame {
             justify-content: center;
           }
+
+          .lakehouse-date-input {
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            min-width: 0;
+            text-align: left;
+            appearance: auto;
+            -webkit-appearance: auto;
+          }
+
+          .lakehouse-date-input::-webkit-date-and-time-value {
+            text-align: left;
+          }
+
+          .lakehouse-date-input::-webkit-calendar-picker-indicator {
+            display: block;
+            opacity: 1;
+            cursor: pointer;
+          }
         `}
       </style>
 
@@ -567,6 +590,7 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
             <div>
               <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>Start date</div>
               <input
+                className="lakehouse-date-input"
                 type="date"
                 value={draft.start}
                 min={todayYmd}
@@ -605,6 +629,7 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
                 End date
               </div>
               <input
+                className="lakehouse-date-input"
                 type="date"
                 value={draft.end ? toInclusiveEnd(draft.end) : ''}
                 min={draft.start}
@@ -811,10 +836,12 @@ function Modal(props: {
       <div
         style={{
           width: 'min(620px, 100%)',
+          maxWidth: '100%',
           background: 'white',
           color: '#111827',
           borderRadius: 12,
           padding: 16,
+          boxSizing: 'border-box',
           boxShadow: '0 10px 25px rgba(0,0,0,0.2)',
         }}
         onClick={(e) => e.stopPropagation()}
