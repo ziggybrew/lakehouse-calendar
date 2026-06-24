@@ -2,6 +2,7 @@ export const DEMO_USER_ID = 'demo-user-zack'
 
 const DEMO_AUTH_KEY = 'lakehouse_demo'
 const DEMO_DATA_KEY = 'lakehouse_demo_data'
+export const DEMO_AUTH_EVENT = 'lakehouse-demo-auth-changed'
 
 let demoAuthMemory = false
 let demoDataMemory: DemoData | null = null
@@ -200,6 +201,7 @@ export function startDemoSession() {
     // In-memory fallback keeps demo mode functional when browser storage is unavailable.
   }
   writeDemoData(createInitialDemoData())
+  window.dispatchEvent(new Event(DEMO_AUTH_EVENT))
 }
 
 export function endDemoSession() {
@@ -211,6 +213,7 @@ export function endDemoSession() {
   } catch {
     // Storage may be unavailable in embedded/test browsers.
   }
+  window.dispatchEvent(new Event(DEMO_AUTH_EVENT))
 }
 
 export function getDemoProfile(id = DEMO_USER_ID) {

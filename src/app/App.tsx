@@ -10,7 +10,7 @@ import PendingApproval from '../pages/PendingApproval'
 import Dashboard from '../pages/Dashboard'
 import ProtectedRoute from '../components/ProtectedRoute'
 import AppShell from '../components/AppShell'
-import { isDemoMode } from '../lib/demoMode'
+import { DEMO_AUTH_EVENT, isDemoMode } from '../lib/demoMode'
 
 export default function App() {
   const [session, setSession] = useState<Session | null>(null)
@@ -18,6 +18,7 @@ export default function App() {
   const [profileReady, setProfileReady] = useState(false)
   const [isActive, setIsActive] = useState<boolean | null>(null)
   const [isAdmin, setIsAdmin] = useState<boolean | null>(null)
+  const [demo, setDemo] = useState(() => isDemoMode())
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -31,6 +32,19 @@ export default function App() {
 
     return () => {
       data.subscription.unsubscribe()
+    }
+  }, [])
+
+  useEffect(() => {
+    function syncDemoMode() {
+      setDemo(isDemoMode())
+    }
+
+    window.addEventListener(DEMO_AUTH_EVENT, syncDemoMode)
+    window.addEventListener('storage', syncDemoMode)
+    return () => {
+      window.removeEventListener(DEMO_AUTH_EVENT, syncDemoMode)
+      window.removeEventListener('storage', syncDemoMode)
     }
   }, [])
 
@@ -72,7 +86,6 @@ export default function App() {
     }
   }, [session])
 
-  const demo = isDemoMode()
   const isAuthed = !!session || demo
   const activeForRoutes = demo ? true : isActive ?? false
   const adminForRoutes = demo ? true : isAdmin ?? false

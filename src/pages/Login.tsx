@@ -1,5 +1,5 @@
 // src/pages/Login.tsx
-import { useEffect, useMemo, useState, type FormEvent } from 'react'
+import { useEffect, useMemo, useState, type FormEvent, type MouseEvent } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { supabase } from '../lib/supabaseClient'
 import { endDemoSession, startDemoSession } from '../lib/demoMode'
@@ -140,13 +140,26 @@ export default function Login() {
     }
   }
 
-  function enableDemoMode() {
+  function enableDemoMode(e?: MouseEvent<HTMLButtonElement>) {
+    e?.preventDefault()
+    e?.stopPropagation()
+
     try {
       startDemoSession()
     } catch {
       // ignore
     }
-    navigate('/dashboard')
+
+    closeLogin()
+    navigate('/dashboard', { replace: true })
+
+    // HashRouter navigation can be swallowed on some mobile browsers when the
+    // modal unmounts in the same tap event. Force the same route as a fallback.
+    window.setTimeout(() => {
+      if (window.location.hash !== '#/dashboard') {
+        window.location.hash = '#/dashboard'
+      }
+    }, 0)
   }
 
   function disableDemoMode() {
@@ -734,10 +747,7 @@ export default function Login() {
 
               <button
                 type="button"
-                onClick={() => {
-                  enableDemoMode()
-                  closeLogin()
-                }}
+                onClick={enableDemoMode}
                 style={{
                   minHeight: 44,
                   borderRadius: 12,
