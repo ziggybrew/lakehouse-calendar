@@ -317,6 +317,20 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
     textAlign: 'left',
   }
 
+  const dateInputWrapStyle: React.CSSProperties = {
+    position: 'relative',
+    width: '100%',
+    maxWidth: '100%',
+    minWidth: 0,
+    boxSizing: 'border-box',
+  }
+
+  const dateInputStyle: React.CSSProperties = {
+    height: 44,
+    padding: '0 42px 0 12px',
+    lineHeight: '44px',
+  }
+
   const dayBookings = useMemo(() => {
     if (!activeDay) return []
     return bookingsForDay(bookings, activeDay)
@@ -456,18 +470,30 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
             width: 100%;
             max-width: 100%;
             min-width: 0;
+            inline-size: 100%;
+            max-inline-size: 100%;
+            min-inline-size: 0;
+            height: 44px;
+            padding: 0 42px 0 12px;
+            line-height: 44px;
             text-align: left;
-            appearance: auto;
-            -webkit-appearance: auto;
+            appearance: none;
+            -webkit-appearance: none;
           }
 
           .lakehouse-date-input::-webkit-date-and-time-value {
+            display: flex;
+            align-items: center;
+            min-height: 42px;
             text-align: left;
           }
 
           .lakehouse-date-input::-webkit-calendar-picker-indicator {
-            display: block;
-            opacity: 1;
+            position: absolute;
+            right: 12px;
+            width: 22px;
+            height: 22px;
+            opacity: 0;
             cursor: pointer;
           }
         `}
@@ -589,82 +615,89 @@ function labelFromSelectedUsers(selectedIds: string[], options: ProfileOption[])
           <div style={{ marginTop: 8, display: 'grid', gap: 12 }}>
             <div>
               <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>Start date</div>
-              <input
-                className="lakehouse-date-input"
-                type="date"
-                value={draft.start}
-                min={todayYmd}
-                onClick={(e) => {
-                  const el = e.currentTarget as any
-                  if (typeof el.showPicker === 'function') el.showPicker()
-                }}
-                onFocus={(e) => {
-                  const el = e.currentTarget as any
-                  if (typeof el.showPicker === 'function') el.showPicker()
-                }}
-                onChange={(e) => {
-                  const nextStartRaw = e.target.value
-                  const nextStart = isYmdAfter(todayYmd, nextStartRaw) ? todayYmd : nextStartRaw
-                  if (draft.end) {
-                    const currentEndInclusive = toInclusiveEnd(draft.end)
+              <div style={dateInputWrapStyle}>
+                <input
+                  className="lakehouse-date-input"
+                  type="date"
+                  value={draft.start}
+                  min={todayYmd}
+                  onClick={(e) => {
+                    const el = e.currentTarget as any
+                    if (typeof el.showPicker === 'function') el.showPicker()
+                  }}
+                  onFocus={(e) => {
+                    const el = e.currentTarget as any
+                    if (typeof el.showPicker === 'function') el.showPicker()
+                  }}
+                  onChange={(e) => {
+                    const nextStartRaw = e.target.value
+                    const nextStart = isYmdAfter(todayYmd, nextStartRaw) ? todayYmd : nextStartRaw
+                    if (draft.end) {
+                      const currentEndInclusive = toInclusiveEnd(draft.end)
 
-                    // If start moves after current end (inclusive), bump end to match start
-                    if (isYmdAfter(nextStart, currentEndInclusive)) {
-                      setDraft({
-                        ...draft,
-                        start: nextStart,
-                        end: toExclusiveEnd(nextStart),
-                      })
-                      return
+                      // If start moves after current end (inclusive), bump end to match start
+                      if (isYmdAfter(nextStart, currentEndInclusive)) {
+                        setDraft({
+                          ...draft,
+                          start: nextStart,
+                          end: toExclusiveEnd(nextStart),
+                        })
+                        return
+                      }
                     }
-                  }
-                  setDraft({ ...draft, start: nextStart })
-                }}
-                style={{ ...inputStyle, cursor: 'pointer' }}
-              />
+                    setDraft({ ...draft, start: nextStart })
+                  }}
+                  style={{ ...inputStyle, ...dateInputStyle, cursor: 'pointer' }}
+                />
+                <IconDateInput />
+              </div>
             </div>
 
             <div>
               <div style={{ fontSize: 16, opacity: 0.7, marginBottom: 4 }}>
                 End date
               </div>
-              <input
-                className="lakehouse-date-input"
-                type="date"
-                value={draft.end ? toInclusiveEnd(draft.end) : ''}
-                min={draft.start}
-                onClick={(e) => {
-                  const el = e.currentTarget as any
-                  if (typeof el.showPicker === 'function') el.showPicker()
-                }}
-                onFocus={(e) => {
-                  const el = e.currentTarget as any
-                  if (typeof el.showPicker === 'function') el.showPicker()
-                }}
-                onChange={(e) => {
-                  const nextEndInclusive = e.target.value
+              <div style={dateInputWrapStyle}>
+                <input
+                  className="lakehouse-date-input"
+                  type="date"
+                  value={draft.end ? toInclusiveEnd(draft.end) : ''}
+                  min={draft.start}
+                  onClick={(e) => {
+                    const el = e.currentTarget as any
+                    if (typeof el.showPicker === 'function') el.showPicker()
+                  }}
+                  onFocus={(e) => {
+                    const el = e.currentTarget as any
+                    if (typeof el.showPicker === 'function') el.showPicker()
+                  }}
+                  onChange={(e) => {
+                    const nextEndInclusive = e.target.value
 
-                  if (!nextEndInclusive) {
-                    setDraft({ ...draft, end: '' })
-                    return
-                  }
+                    if (!nextEndInclusive) {
+                      setDraft({ ...draft, end: '' })
+                      return
+                    }
 
-                  // Guard: do not allow inclusive end before start
-                  if (isYmdAfter(draft.start, nextEndInclusive)) {
-                    setDraft({ ...draft, end: toExclusiveEnd(draft.start) })
-                    return
-                  }
+                    // Guard: do not allow inclusive end before start
+                    if (isYmdAfter(draft.start, nextEndInclusive)) {
+                      setDraft({ ...draft, end: toExclusiveEnd(draft.start) })
+                      return
+                    }
 
-                  setDraft({ ...draft, end: toExclusiveEnd(nextEndInclusive) })
-                }}
-                style={{
-                  ...inputStyle,
-                  cursor: 'pointer',
-                  // Hide native empty-state text like mm/dd/yyyy while keeping the calendar icon visible
-                  color: draft.end ? '#1f2933' : 'transparent',
-                  caretColor: draft.end ? '#1f2933' : 'transparent',
-                }}
-              />
+                    setDraft({ ...draft, end: toExclusiveEnd(nextEndInclusive) })
+                  }}
+                  style={{
+                    ...inputStyle,
+                    ...dateInputStyle,
+                    cursor: 'pointer',
+                    // Hide native empty-state text like mm/dd/yyyy while keeping the calendar icon visible
+                    color: draft.end ? '#1f2933' : 'transparent',
+                    caretColor: draft.end ? '#1f2933' : 'transparent',
+                  }}
+                />
+                <IconDateInput />
+              </div>
             </div>
 
             <div>
@@ -830,6 +863,8 @@ function Modal(props: {
         alignItems: 'center',
         justifyContent: 'center',
         padding: 16,
+        boxSizing: 'border-box',
+        overflowX: 'hidden',
       }}
       onClick={props.onClose}
     >
@@ -861,6 +896,35 @@ function Modal(props: {
         <div style={{ marginTop: 12 }}>{props.children}</div>
       </div>
     </div>
+  )
+}
+
+function IconDateInput() {
+  return (
+    <svg
+      className="lakehouse-date-icon"
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      aria-hidden="true"
+      style={{
+        position: 'absolute',
+        right: 13,
+        top: '50%',
+        transform: 'translateY(-50%)',
+        color: '#2f6f73',
+        pointerEvents: 'none',
+      }}
+    >
+      <path
+        d="M7 3v3M17 3v3M4 9h16M6 5h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
   )
 }
 
