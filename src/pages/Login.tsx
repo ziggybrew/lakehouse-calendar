@@ -303,17 +303,19 @@ export default function Login() {
             inset: 0,
             zIndex: 10,
             display: 'flex',
-            alignItems: 'center',
+            alignItems: isWide ? 'center' : 'flex-start',
             justifyContent: 'center',
-            padding: 16,
+            padding: isWide ? 16 : 'max(20px, env(safe-area-inset-top)) 16px max(20px, env(safe-area-inset-bottom))',
             boxSizing: 'border-box',
+            overflowY: 'auto',
+            WebkitOverflowScrolling: 'touch',
           }}
         >
           <div
             style={{
               width: '100%',
               maxWidth: 520,
-              margin: '0 auto',
+              margin: isWide ? '0 auto' : '0 auto',
               background: '#ffffff',
               color: '#1f2933',
               borderRadius: 14,
@@ -321,6 +323,7 @@ export default function Login() {
               boxShadow: '0 16px 40px rgba(0,0,0,0.25)',
               border: '1px solid rgba(214, 230, 227, 0.9)',
               boxSizing: 'border-box',
+              maxHeight: isWide ? undefined : 'none',
             }}
           >
             <div
@@ -696,14 +699,39 @@ export default function Login() {
                 marginTop: 14,
                 paddingTop: 12,
                 borderTop: '1px solid #d6e6e3',
-                display: 'flex',
+                display: 'grid',
+                gridTemplateColumns: isWide && authMode === 'login' ? 'auto auto' : '1fr',
                 alignItems: 'center',
-                justifyContent: 'space-between',
+                justifyContent: isWide ? 'space-between' : 'stretch',
                 gap: 10,
-                flexWrap: 'wrap',
                 fontSize: 16,
               }}
             >
+              {authMode === 'login' ? (
+                <button
+                  type="button"
+                  onClick={() => {
+                    setErrorMsg(null)
+                    setAuthMode('register')
+                    setRegSubmitted(false)
+                  }}
+                  style={{
+                    minHeight: 44,
+                    borderRadius: 12,
+                    border: '1px solid #2f6f73',
+                    background: '#2f6f73',
+                    padding: '0 14px',
+                    color: '#ffffff',
+                    fontWeight: 800,
+                    cursor: 'pointer',
+                    boxShadow: '0 8px 18px rgba(47, 111, 115, 0.18)',
+                    touchAction: 'manipulation',
+                  }}
+                >
+                  Register
+                </button>
+              ) : null}
+
               <button
                 type="button"
                 onClick={() => {
@@ -711,20 +739,24 @@ export default function Login() {
                   closeLogin()
                 }}
                 style={{
-                  border: 'none',
-                  background: 'transparent',
-                  padding: 0,
+                  minHeight: 44,
+                  borderRadius: 12,
+                  border: '1px solid #2f6f73',
+                  background: '#ffffff',
+                  padding: '0 14px',
                   color: '#2f6f73',
                   fontWeight: 800,
                   cursor: 'pointer',
-                  textDecoration: 'underline',
+                  touchAction: 'manipulation',
                 }}
               >
                 <span
                   style={{
                     display: 'inline-flex',
                     alignItems: 'center',
+                    justifyContent: 'center',
                     gap: 6,
+                    width: '100%',
                   }}
                 >
                   <svg
@@ -743,28 +775,6 @@ export default function Login() {
                   <span>View demo</span>
                 </span>
               </button>
-
-              {authMode === 'login' ? (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setErrorMsg(null)
-                    setAuthMode('register')
-                    setRegSubmitted(false)
-                  }}
-                  style={{
-                    border: 'none',
-                    background: 'transparent',
-                    padding: 0,
-                    color: '#2f6f73',
-                    fontWeight: 800,
-                    cursor: 'pointer',
-                    textDecoration: 'underline',
-                  }}
-                >
-                  Need access? Register
-                </button>
-              ) : null}
             </div>
           </div>
         </div>
