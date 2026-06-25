@@ -137,7 +137,9 @@ export default function TopNav() {
           <div style={styles.title}>Lakehouse Calendar</div>
         </div>
 
-        <div style={styles.rightSlot} />
+        {user.isDemo ? <div style={styles.demoToolbarTag}>Demo Mode</div> : null}
+
+        <div style={{ ...styles.rightSlot, marginLeft: user.isDemo ? 0 : 'auto' }} />
       </header>
 
       {/* Drawer + overlay */}
@@ -325,6 +327,24 @@ const styles: Record<string, React.CSSProperties> = {
     marginLeft: 'auto',
     width: 40,
     height: 40,
+  },
+  demoToolbarTag: {
+    marginLeft: 'auto',
+    height: 30,
+    padding: '0 12px',
+    borderRadius: 999,
+    border: '1px solid rgba(255, 255, 255, 0.75)',
+    background: 'linear-gradient(135deg, #f59e0b, #ec4899 52%, #6366f1)',
+    color: '#ffffff',
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: 12,
+    fontWeight: 900,
+    letterSpacing: 0.4,
+    textTransform: 'uppercase',
+    whiteSpace: 'nowrap',
+    boxShadow: '0 6px 16px rgba(99, 102, 241, 0.22)',
   },
   titleWrap: {
     display: 'flex',
