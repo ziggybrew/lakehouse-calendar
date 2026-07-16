@@ -43,7 +43,9 @@ type Booking = {
 }
 
 type BookingDraft = {
+  mode: 'guest' | 'note'
   label: string
+  userIds: string[]
   start: string
   endInclusive: string
   notes: string
@@ -69,7 +71,9 @@ export default function Admin() {
   const [activeTab, setActiveTab] = useState<'access' | 'users' | 'bookings'>('bookings')
 
   const [draft, setDraft] = useState<BookingDraft>({
+    mode: 'guest',
     label: '',
+    userIds: [],
     start: todayYmd(),
     endInclusive: todayYmd(),
     notes: '',
@@ -212,7 +216,9 @@ export default function Admin() {
   function openCreateBooking() {
     setEditingId(null)
     setDraft({
+      mode: 'guest',
       label: '',
+      userIds: [],
       start: todayYmd(),
       endInclusive: todayYmd(),
       notes: '',
@@ -224,7 +230,9 @@ export default function Admin() {
   function openEditBooking(b: Booking) {
     setEditingId(b.id)
     setDraft({
-      label: b.label,
+      mode: b.isBlocked ? 'note' : 'note',
+      label: b.label.replace(/^Blocked:\s*/i, ''),
+      userIds: [],
       start: b.start,
       endInclusive: toInclusiveEnd(b.end),
       notes: b.notes || '',
@@ -234,8 +242,14 @@ export default function Admin() {
   }
 
   async function saveDraft() {
+    const label = draft.mode === 'guest'
+      ? labelFromSelectedUsers(draft.userIds, users)
+      : draft.label.trim()
+
+    if (!label || !draft.start || !draft.endInclusive) return
+
     const payload = {
-      label: draft.isBlocked ? `Blocked: ${draft.label}` : draft.label,
+      label,
       start_date: draft.start,
       end_date: toExclusiveEnd(draft.endInclusive),
       notes: draft.notes || null,
@@ -275,11 +289,17 @@ export default function Admin() {
     loadBookings()
   }
 
+  const activeUsers = users.filter((u) => u.isActive)
+  const draftLabel = draft.mode === 'guest'
+    ? labelFromSelectedUsers(draft.userIds, users)
+    : draft.label.trim()
+  const draftIsValid = !!draftLabel && !!draft.start && !!draft.endInclusive
+
   return (
     <div style={{ minHeight: '100vh', padding: 16, background: '#eef4f3' }}>
       <h1 style={{ margin: 0, color: '#2f6f73' }}>Admin</h1>
       <div style={{ fontSize: 12, opacity: 0.75, marginTop: 4 }}>
-        Admin-only tools for managing users and entries.
+        Admin-only tools for managing users and bookings.
       </div>
 
       <div style={{ marginTop: 14 }}>
@@ -402,7 +422,7 @@ export default function Admin() {
       {activeTab === 'bookings' && (
         <Section
           title="Booking management"
-          right={<Button icon={<IconAdd />} label="New entry" onClick={openCreateBooking} />}
+          right={<Button icon={<IconAdd />} label="New booking" onClick={openCreateBooking} />}
         >
           {bookingsError ? (
             <div style={{ fontSize: 13, color: '#991b1b', fontWeight: 800, marginBottom: 10 }}>
@@ -464,12 +484,151 @@ export default function Admin() {
       )}
 
       {draftOpen && (
-        <Modal title={editingId ? 'Edit entry' : 'New entry'} onClose={() => setDraftOpen(false)}>
-          <input value={draft.label} onChange={e => setDraft({ ...draft, label: e.target.value })} />
-          <input type="date" value={draft.start} onChange={e => setDraft({ ...draft, start: e.target.value })} />
-          <input type="date" value={draft.endInclusive} onChange={e => setDraft({ ...draft, endInclusive: e.target.value })} />
-          <textarea value={draft.notes} onChange={e => setDraft({ ...draft, notes: e.target.value })} />
-          <Button compact icon={<IconCheck />} label="Save" onClick={saveDraft} />
+        <Modal title={editingId ? 'Edit booking' : 'New booking'} onClose={() => setDraftOpen(false)}>
+          <div style={modalFormStyle}>
+            <div style={modeToggleStyle} aria-label="Booking type">
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, mode: 'guest', label: '' })}
+                style={draft.mode === 'guest' ? modeToggleActiveStyle : modeToggleBtnStyle}
+              >
+                Family booking
+              </button>
+              <button
+                type="button"
+                onClick={() => setDraft({ ...draft, mode: 'note', userIds: [] })}
+                style={draft.mode === 'note' ? modeToggleActiveStyle : modeToggleBtnStyle}
+              >
+                Maintenance / other
+              </button>
+            </div>
+
+            <label style={checkRowStyle}>
+              <input
+                type="checkbox"
+                checked={draft.isBlocked}
+                onChange={e => setDraft({ ...draft, isBlocked: e.target.checked })}
+                style={{ width: 16, height: 16, marginTop: 2 }}
+              />
+              <span>
+                <span style={{ display: 'block', fontWeight: 900, color: '#1f2933' }}>Block these dates</span>
+                <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: '#4f6f6d' }}>
+                  Prevent family bookings during cleaning, maintenance, or owner holds.
+                </span>
+              </span>
+            </label>
+
+            {draft.mode === 'guest' ? (
+              <div style={fieldStyle}>
+                <span style={labelStyle}>Guests</span>
+                {usersLoading ? (
+                  <div style={emptyPickerStyle}>Loading users…</div>
+                ) : activeUsers.length === 0 ? (
+                  <div style={emptyPickerStyle}>No active users available.</div>
+                ) : (
+                  <div style={guestPickerStyle}>
+                    {activeUsers.map((u) => {
+                      const checked = draft.userIds.includes(u.id)
+                      return (
+                        <label
+                          key={u.id}
+                          style={checked ? guestOptionCheckedStyle : guestOptionStyle}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={() => {
+                              const next = checked
+                                ? draft.userIds.filter((id) => id !== u.id)
+                                : [...draft.userIds, u.id]
+                              setDraft({ ...draft, userIds: next })
+                            }}
+                            style={{ width: 16, height: 16 }}
+                          />
+                          <span style={{ minWidth: 0 }}>
+                            <span style={{ display: 'block', fontWeight: 900, color: '#1f2933' }}>
+                              {adminUserDisplayName(u)}
+                            </span>
+                            <span style={{ display: 'block', marginTop: 2, fontSize: 12, color: '#4f6f6d', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                              {u.email}
+                            </span>
+                          </span>
+                        </label>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            ) : (
+              <label style={fieldStyle}>
+                <span style={labelStyle}>Name or event</span>
+                <input
+                  value={draft.label}
+                  onChange={e => setDraft({ ...draft, label: e.target.value })}
+                  placeholder="Maintenance, cleaning, owner hold, family event"
+                  style={inputStyle}
+                />
+              </label>
+            )}
+
+            <div style={dateGridStyle}>
+              <label style={fieldStyle}>
+                <span style={labelStyle}>Start date</span>
+                <input
+                  type="date"
+                  value={draft.start}
+                  onChange={e => {
+                    const nextStart = e.target.value
+                    setDraft({
+                      ...draft,
+                      start: nextStart,
+                      endInclusive: draft.endInclusive < nextStart ? nextStart : draft.endInclusive,
+                    })
+                  }}
+                  style={inputStyle}
+                />
+              </label>
+
+              <label style={fieldStyle}>
+                <span style={labelStyle}>End date</span>
+                <input
+                  type="date"
+                  value={draft.endInclusive}
+                  min={draft.start}
+                  onChange={e => setDraft({ ...draft, endInclusive: e.target.value })}
+                  style={inputStyle}
+                />
+              </label>
+            </div>
+
+            <label style={fieldStyle}>
+              <span style={labelStyle}>Notes</span>
+              <textarea
+                value={draft.notes}
+                onChange={e => setDraft({ ...draft, notes: e.target.value })}
+                rows={4}
+                placeholder="Optional details"
+                style={{ ...inputStyle, minHeight: 96, resize: 'vertical' }}
+              />
+            </label>
+
+            <div style={modalActionsStyle}>
+              <button type="button" style={secondaryActionStyle} onClick={() => setDraftOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                style={!draftIsValid ? primaryActionDisabledStyle : primaryActionStyle}
+                disabled={!draftIsValid}
+                onClick={saveDraft}
+              >
+                <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
+                  <IconCheck />
+                  <span>Save booking</span>
+                </span>
+              </button>
+            </div>
+          </div>
         </Modal>
       )}
     </div>
@@ -494,6 +653,22 @@ function sortAdminUsers(users: AdminUser[]) {
 
     return (a.email || '').toLowerCase().localeCompare((b.email || '').toLowerCase())
   })
+}
+
+function adminUserDisplayName(u: AdminUser) {
+  const name = [u.firstName, u.lastName].filter(Boolean).join(' ').trim()
+  return name || u.email || 'Unknown user'
+}
+
+function labelFromSelectedUsers(selectedIds: string[], users: AdminUser[]) {
+  const byId = new Map(users.map((u) => [u.id, u]))
+  const names = selectedIds
+    .map((id) => byId.get(id))
+    .filter(Boolean)
+    .map((u) => adminUserDisplayName(u as AdminUser))
+
+  const seen = new Set<string>()
+  return names.filter((name) => (seen.has(name) ? false : (seen.add(name), true))).join(', ')
 }
 
 function Section({ title, children, right }: any) {
@@ -598,6 +773,160 @@ const segmentIcon: React.CSSProperties = {
   justifyContent: 'center',
 }
 
+const modalFormStyle: React.CSSProperties = {
+  marginTop: 14,
+  display: 'grid',
+  gap: 14,
+}
+
+const modeToggleStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(2, minmax(0, 1fr))',
+  borderRadius: 14,
+  border: '1px solid rgba(47,111,115,0.22)',
+  background: 'rgba(238,244,243,0.85)',
+  padding: 3,
+  gap: 3,
+}
+
+const modeToggleBtnStyle: React.CSSProperties = {
+  minHeight: 42,
+  border: 'none',
+  borderRadius: 11,
+  background: 'transparent',
+  color: '#2f6f73',
+  fontWeight: 900,
+  cursor: 'pointer',
+  padding: '0 10px',
+}
+
+const modeToggleActiveStyle: React.CSSProperties = {
+  ...modeToggleBtnStyle,
+  background: '#2f6f73',
+  color: '#ffffff',
+  boxShadow: '0 4px 12px rgba(47,111,115,0.18)',
+}
+
+const fieldStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 6,
+}
+
+const labelStyle: React.CSSProperties = {
+  fontSize: 13,
+  fontWeight: 900,
+  color: '#2f6f73',
+}
+
+const inputStyle: React.CSSProperties = {
+  width: '100%',
+  maxWidth: '100%',
+  minWidth: 0,
+  boxSizing: 'border-box',
+  borderRadius: 12,
+  border: '1px solid rgba(47,111,115,0.24)',
+  background: '#ffffff',
+  color: '#1f2933',
+  padding: '12px 12px',
+  fontSize: 16,
+  fontFamily: 'inherit',
+  lineHeight: 1.25,
+  outline: 'none',
+}
+
+const dateGridStyle: React.CSSProperties = {
+  display: 'grid',
+  gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+  gap: 12,
+}
+
+const guestPickerStyle: React.CSSProperties = {
+  display: 'grid',
+  gap: 8,
+  maxHeight: 230,
+  overflowY: 'auto',
+  borderRadius: 12,
+  border: '1px solid rgba(47,111,115,0.16)',
+  background: '#ffffff',
+  padding: 8,
+}
+
+const guestOptionStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'center',
+  gap: 10,
+  borderRadius: 10,
+  border: '1px solid transparent',
+  background: 'transparent',
+  padding: '10px 10px',
+  cursor: 'pointer',
+  minWidth: 0,
+}
+
+const guestOptionCheckedStyle: React.CSSProperties = {
+  ...guestOptionStyle,
+  border: '1px solid rgba(47,111,115,0.28)',
+  background: 'rgba(95,167,163,0.10)',
+}
+
+const emptyPickerStyle: React.CSSProperties = {
+  borderRadius: 12,
+  border: '1px solid rgba(47,111,115,0.16)',
+  background: '#ffffff',
+  padding: 12,
+  color: '#4f6f6d',
+  fontSize: 13,
+}
+
+const checkRowStyle: React.CSSProperties = {
+  display: 'flex',
+  alignItems: 'flex-start',
+  gap: 10,
+  borderRadius: 12,
+  border: '1px solid rgba(47,111,115,0.14)',
+  background: 'rgba(238,244,243,0.85)',
+  padding: 12,
+  cursor: 'pointer',
+}
+
+const modalActionsStyle: React.CSSProperties = {
+  display: 'flex',
+  justifyContent: 'flex-end',
+  gap: 10,
+  flexWrap: 'wrap',
+  paddingTop: 4,
+}
+
+const secondaryActionStyle: React.CSSProperties = {
+  minHeight: 42,
+  borderRadius: 12,
+  border: '1px solid rgba(47,111,115,0.22)',
+  background: '#ffffff',
+  color: '#2f6f73',
+  padding: '0 14px',
+  fontWeight: 900,
+  cursor: 'pointer',
+}
+
+const primaryActionStyle: React.CSSProperties = {
+  minHeight: 42,
+  borderRadius: 12,
+  border: '1px solid #2f6f73',
+  background: '#2f6f73',
+  color: '#ffffff',
+  padding: '0 14px',
+  fontWeight: 900,
+  cursor: 'pointer',
+  boxShadow: '0 8px 18px rgba(47,111,115,0.18)',
+}
+
+const primaryActionDisabledStyle: React.CSSProperties = {
+  ...primaryActionStyle,
+  opacity: 0.45,
+  cursor: 'not-allowed',
+  boxShadow: 'none',
+}
+
 /* ---------- Icons ---------- */
 
 function SvgIcon(props: { children: React.ReactNode }) {
@@ -627,8 +956,10 @@ function IconClose() {
   return (
     <SvgIcon>
       <path
-        d="M18.3 5.71L12 12l6.3 6.29-1.41 1.42L12 13.41l-6.89 6.3-1.41-1.42L10.59 12 3.7 5.71 5.11 4.29 12 10.59l6.89-6.3 1.41 1.42z"
-        fill="currentColor"
+        d="M6 6l12 12M18 6L6 18"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
       />
     </SvgIcon>
   )
@@ -753,11 +1084,63 @@ function isTodayWithinBooking(startYmd: string, endExclusiveYmd: string) {
 
 function Modal({ title, children, onClose }: any) {
   return (
-    <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,.3)' }}>
-      <div onClick={e => e.stopPropagation()} style={{ background: '#fff', margin: '10% auto', padding: 20 }}>
-        <strong>{title}</strong>
+    <div
+      onClick={onClose}
+      role="dialog"
+      aria-modal="true"
+      style={{
+        position: 'fixed',
+        inset: 0,
+        zIndex: 9999,
+        background: 'rgba(47, 111, 115, 0.38)',
+        backdropFilter: 'blur(2px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        padding: 'max(16px, env(safe-area-inset-top)) 16px max(16px, env(safe-area-inset-bottom))',
+        boxSizing: 'border-box',
+        overflowY: 'auto',
+        WebkitOverflowScrolling: 'touch',
+      }}
+    >
+      <div
+        onClick={e => e.stopPropagation()}
+        style={{
+          width: 'min(560px, 100%)',
+          maxWidth: '100%',
+          maxHeight: 'calc(100dvh - 32px)',
+          overflowY: 'auto',
+          boxSizing: 'border-box',
+          background: '#ffffff',
+          color: '#1f2933',
+          borderRadius: 16,
+          padding: 18,
+          border: '1px solid rgba(214,230,227,0.95)',
+          boxShadow: '0 18px 44px rgba(0,0,0,0.24)',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+          <strong style={{ color: '#2f6f73', fontSize: 18 }}>{title}</strong>
+          <button type="button" onClick={onClose} style={modalCloseBtnStyle} aria-label="Close">
+            <IconClose />
+          </button>
+        </div>
         {children}
       </div>
     </div>
   )
+}
+
+const modalCloseBtnStyle: React.CSSProperties = {
+  width: 36,
+  height: 36,
+  borderRadius: 12,
+  border: '1px solid rgba(47,111,115,0.18)',
+  background: '#ffffff',
+  color: '#2f6f73',
+  display: 'inline-flex',
+  alignItems: 'center',
+  justifyContent: 'center',
+  cursor: 'pointer',
+  flex: '0 0 auto',
 }
